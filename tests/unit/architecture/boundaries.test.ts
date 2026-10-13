@@ -109,6 +109,14 @@ describe('module boundaries', () => {
     ]);
   });
 
+  it('only the GitHub adapter may use Octokit', async () => {
+    const code = `import { Octokit } from '@octokit/core';`;
+    expect(await violations('src/github/client.ts', code)).toEqual([]);
+    for (const file of ['src/core/review.ts', 'src/ai/ollama.ts', 'src/analyzers/semgrep.ts']) {
+      expect(await violations(file, code)).toEqual(['no-restricted-imports']);
+    }
+  });
+
   it('the GitHub adapter may not contain review logic', async () => {
     expect(
       await violations('src/github/client.ts', `import { review } from '../ai/review-diff.js';`),

@@ -6,8 +6,23 @@ import type { ReviewFinding, Severity } from './schema.js';
 export type ReviewFile = EligibleFile;
 export type { SkippedFile };
 
+export type ReviewErrorCode =
+  DiffErrorCode | 'no-analyzers' | 'all-analyzers-failed' | 'github-api-error';
+
+export interface ReviewError {
+  code: ReviewErrorCode;
+  message: string;
+}
+
 /** `hybrid` adds an AI analyzer to the deterministic rules. */
 export type ReviewMode = 'rules-only' | 'hybrid';
+
+export interface PullRequestContext {
+  number: number;
+  headSha: string;
+  /** The head branch lives in a fork; the run had a read-only token and no secrets. */
+  isFork: boolean;
+}
 
 /** Which model reviewed the change (spec FR-7). Present in hybrid mode. */
 export interface AiDescriptor {
@@ -41,9 +56,11 @@ export interface ReviewReport {
   reviewerVersion: string;
   mode: ReviewMode;
   ai?: AiDescriptor;
+  /** Set when the review ran on a GitHub pull request. */
+  pullRequest?: PullRequestContext;
   status: ReviewStatus;
-  /** Present when status is `failed` because the input was rejected. */
-  error?: { code: DiffErrorCode | 'no-analyzers' | 'all-analyzers-failed'; message: string };
+  /** Present when status is `failed`: why no (complete) analysis happened. */
+  error?: ReviewError;
   /** Findings at or above `minSeverity`, most severe first. */
   findings: ReviewFinding[];
   minSeverity: Severity;

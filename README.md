@@ -6,9 +6,10 @@ PR Guardian is a GitHub pull request reviewer that combines deterministic static
 optional, schema-validated AI review. It is an assistant, not an authority: **a report with no
 findings does not mean the code is correct or secure.**
 
-> **Status: early development (Milestone 3 of 6).** The local review engine works in rules-only
-> mode and, optionally, with a local AI reviewer (Ollama). GitHub integration is not implemented
-> yet. This README only describes what exists today.
+> **Status: early development (Milestone 4 of 6).** The review engine runs locally (rules-only, or
+> with an optional local AI reviewer) and as a GitHub Action that publishes a job summary on pull
+> requests. Inline PR comments are not implemented yet. This README only describes what exists
+> today.
 
 ## Design goals
 
@@ -31,6 +32,47 @@ npm ci
 npm run check      # typecheck, lint, format check, tests, build
 npm run dev -- --help
 ```
+
+## Using the GitHub Action
+
+Add `.github/workflows/pr-guardian.yml` to a repository:
+
+```yaml
+name: PR Guardian
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: read
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: Emannnqt/pr-guardian@<full-commit-sha> # pin a release commit
+        with:
+          fail-on: high # optional; omit for advisory-only reviews
+```
+
+The review appears as the job summary on the run (the pull request's **Checks** tab). It needs
+no write permission, so it also works for pull requests from forks. The Action reads the change
+through the GitHub API; it never checks out or executes pull request code. It runs the built-in
+rules only (AI review is local-only for now).
+
+| Input            | Default               | Meaning                                                             |
+| ---------------- | --------------------- | ------------------------------------------------------------------- |
+| `min-severity`   | `low`                 | Lowest severity listed; hidden findings are still counted           |
+| `fail-on`        | (empty)               | Fail the step if a listed finding is at or above this severity      |
+| `exclude-paths`  | (empty)               | Extra paths to skip, one per line, e.g. `src/generated`             |
+| `max-files`      | `300`                 | Fail the review above this many changed files (can only be lowered) |
+| `max-file-bytes` | `100000`              | Skip files with a larger diff (can only be lowered)                 |
+| `github-token`   | `${{ github.token }}` | Token with `pull-requests: read` and `contents: read`               |
+
+Outputs: `status` (`completed`, `partial`, `failed`), `finding-count`, `report-path` (JSON report).
+The step fails when the review fails or `fail-on` is met; otherwise it passes, with a warning when
+the review completed with limitations. See [docs/security.md](docs/security.md) for the trust
+model, fork behavior and how to make the check required.
 
 ## Reviewing a diff locally
 
@@ -146,14 +188,14 @@ enforced by lint rules and covered by tests. See [docs/architecture.md](docs/arc
 
 ## Planned
 
-- GitHub Actions integration and job summary (Milestone 4)
 - Inline comments with duplicate suppression (Milestone 5)
 - Evaluation dataset and published methodology (Milestone 6)
 
 ## Security
 
 Do not commit secrets. Secrets are supplied through environment variables or GitHub Secrets only.
-A full security model will be documented in `docs/security.md` alongside the GitHub integration.
+The security model, permissions and known limitations are documented in
+[docs/security.md](docs/security.md).
 
 ## License
 

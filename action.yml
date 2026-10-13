@@ -1,0 +1,44 @@
+name: PR Guardian
+description: Evidence-backed pull request review with deterministic rules. Read-only; never runs pull request code.
+author: Emannnqt
+branding:
+  icon: shield
+  color: blue
+
+inputs:
+  github-token:
+    description: 'Token used to read the pull request. Needs only "pull-requests: read" and "contents: read".'
+    required: false
+    default: ${{ github.token }}
+  min-severity:
+    description: Lowest severity listed in the summary (critical, high, medium, low, info). Lower findings are still counted.
+    required: false
+    default: low
+  fail-on:
+    description: Fail the step if a listed finding is at or above this severity. Empty (default) means advisory only.
+    required: false
+    default: ''
+  exclude-paths:
+    description: Extra paths to skip, one per line (directories or files, e.g. src/generated).
+    required: false
+    default: ''
+  max-files:
+    description: Fail the review when a pull request changes more files than this (at most 300).
+    required: false
+    default: '300'
+  max-file-bytes:
+    description: Skip files whose diff is larger than this many bytes (at most 100000).
+    required: false
+    default: '100000'
+
+outputs:
+  status:
+    description: Review status, one of completed, partial or failed.
+  finding-count:
+    description: Number of findings listed in the summary.
+  report-path:
+    description: Path of the full JSON report on the runner.
+
+runs:
+  using: node24
+  main: dist-action/index.mjs

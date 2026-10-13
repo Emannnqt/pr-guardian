@@ -41,10 +41,16 @@ const SKIP_REASON_LABEL: Readonly<Record<SkipReason, string>> = {
   'excluded-path': 'excluded path',
   'unsupported-language': 'unsupported language',
   'file-too-large': 'exceeds per-file size limit',
+  'patch-unavailable': 'no diff available from GitHub (too large?)',
   'no-added-lines': 'no added lines',
 };
 
-export function renderMarkdown(report: ReviewReport): string {
+export interface RenderOptions {
+  /** List at most this many findings (most severe first); the rest are counted. */
+  maxFindings?: number;
+}
+
+export function renderMarkdown(report: ReviewReport, options: RenderOptions = {}): string {
   const out: string[] = [];
   out.push('## PR Guardian review', '');
   out.push(
@@ -57,6 +63,13 @@ export function renderMarkdown(report: ReviewReport): string {
       '',
     );
   }
+  if (report.pullRequest) {
+    const pr = report.pullRequest;
+    out.push(
+      `**Pull request:** #${String(pr.number)} · head ${inlineCode(pr.headSha.slice(0, 12))}${pr.isFork ? ' · from a fork (read-only token)' : ''}`,
+      '',
+    );
+  }
 
   if (report.error) {
     out.push(`> **Review failed:** ${escapeInline(report.error.message)}`, '');
@@ -66,12 +79,22 @@ export function renderMarkdown(report: ReviewReport): string {
 
   if (report.findings.length > 0) {
     out.push('### Findings', '');
+    // Findings are sorted most severe first, so a cap drops the least severe.
+    const listed = report.findings.slice(0, options.maxFindings ?? report.findings.length);
     let n = 0;
     for (const severity of SEVERITIES) {
-      const group = report.findings.filter((f) => f.severity === severity);
+      const group = listed.filter((f) => f.severity === severity);
       if (group.length === 0) continue;
-      out.push(`#### ${SEVERITY_LABEL[severity]} (${String(group.length)})`, '');
+      const total = report.findings.filter((f) => f.severity === severity).length;
+      out.push(`#### ${SEVERITY_LABEL[severity]} (${String(total)})`, '');
       for (const finding of group) out.push(...renderFinding(++n, finding));
+    }
+    const unlisted = report.findings.length - listed.length;
+    if (unlisted > 0) {
+      out.push(
+        `> ${String(unlisted)} more finding${unlisted === 1 ? '' : 's'} not shown here to stay within the size limit; see the JSON report.`,
+        '',
+      );
     }
   }
 

@@ -1,0 +1,2 @@
+# Committed Action bundle: generated from src/ by `npm run build:action`.
+dist-action/** linguist-generated=true

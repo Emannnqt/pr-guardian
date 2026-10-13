@@ -57,3 +57,13 @@ jobs:
 
       - name: Smoke-test built CLI
         run: node dist/cli/index.js --version
+
+      # The Action runs the committed bundle, so it must match the reviewed source.
+      - name: Check the committed action bundle is up to date
+        if: matrix.node == 24
+        run: |
+          npm run build:action
+          if ! git diff --quiet -- dist-action; then
+            echo "::error::dist-action/ is out of date. Run 'npm run build:action' and commit the result."
+            exit 1
+          fi

@@ -1,0 +1,34 @@
+name: PR Guardian
+
+# Reviews pull requests to this repository with the Action defined here.
+# Uses `pull_request` (never `pull_request_target`): fork PRs get a read-only
+# token and no secrets, which is all PR Guardian needs.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read # check out the Action's own code
+  pull-requests: read # read the PR's changed files through the API
+
+concurrency:
+  group: pr-guardian-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Review
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      # Check out the *base* commit, so the reviewer that runs is the trusted
+      # version from the target branch, not code supplied by the pull request.
+      # The PR's changes are read through the API; PR code is never executed.
+      - name: Check out PR Guardian (base branch)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+
+      - name: Review pull request
+        uses: ./

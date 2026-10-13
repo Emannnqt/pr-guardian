@@ -15,6 +15,7 @@ import { SEVERITY_RANK, type ReviewFinding, type Severity } from './schema.js';
 import type {
   AiDescriptor,
   AnalyzerRun,
+  ReviewError,
   ReviewFile,
   ReviewMode,
   ReviewReport,
@@ -66,9 +67,9 @@ export async function reviewDiff(
   return reviewFiles(files, options, deps);
 }
 
-/** A `failed` report for input rejected before analysis (e.g. too large to read). */
+/** A `failed` report for input that could not be obtained or was rejected before analysis. */
 export function failedReport(
-  error: DiffError,
+  error: ReviewError,
   options: Pick<ReviewOptions, 'minSeverity'>,
   deps: Pick<ReviewDependencies, 'now' | 'mode' | 'ai'>,
 ): ReviewReport {
@@ -221,7 +222,7 @@ function deriveStatus(
   const incomplete =
     eligible.length === 0 ||
     analyzers.some((a) => a.status !== 'succeeded' || a.incomplete === true) ||
-    skipped.some((f) => f.reason === 'file-too-large') ||
+    skipped.some((f) => f.reason === 'file-too-large' || f.reason === 'patch-unavailable') ||
     eligible.some((f) => f.skippedLongLines > 0);
   return incomplete ? 'partial' : 'completed';
 }
@@ -242,6 +243,12 @@ function describeLimitations(
   if (tooLarge > 0) {
     limitations.push(
       `${plural(tooLarge, 'file')} exceeded the ${String(options.limits.maxFileBytes)}-byte per-file limit and ${tooLarge === 1 ? 'was' : 'were'} not analyzed.`,
+    );
+  }
+  const noPatch = count('patch-unavailable');
+  if (noPatch > 0) {
+    limitations.push(
+      `${plural(noPatch, 'changed file')} had no diff available from GitHub (usually because ${noPatch === 1 ? 'it is' : 'they are'} too large) and ${noPatch === 1 ? 'was' : 'were'} not analyzed.`,
     );
   }
   const longLines = eligible.reduce((n, f) => n + f.skippedLongLines, 0);

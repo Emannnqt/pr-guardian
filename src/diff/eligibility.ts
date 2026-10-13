@@ -10,6 +10,7 @@ export type SkipReason =
   | 'excluded-path'
   | 'unsupported-language'
   | 'file-too-large'
+  | 'patch-unavailable'
   | 'no-added-lines';
 
 /** Which changed files are analyzed. Secret-bearing paths are always excluded. */
@@ -20,6 +21,8 @@ export interface EligibilityPolicy {
   excludedDirectories: readonly string[];
   /** File-name suffixes to exclude (generated or minified code). */
   excludedSuffixes: readonly string[];
+  /** Repository path prefixes to exclude, e.g. `src/generated/` or one file path. */
+  excludedPrefixes: readonly string[];
 }
 
 export const DEFAULT_ELIGIBILITY_POLICY: Readonly<EligibilityPolicy> = {
@@ -35,6 +38,7 @@ export const DEFAULT_ELIGIBILITY_POLICY: Readonly<EligibilityPolicy> = {
   },
   excludedDirectories: ['node_modules', 'dist', 'build', 'coverage', 'vendor', '.git'],
   excludedSuffixes: ['.d.ts', '.min.js', '.bundle.js'],
+  excludedPrefixes: [],
 };
 
 /**
@@ -107,10 +111,17 @@ function skipReason(
   if (file.binary) return 'binary';
   if (segments.some((s) => policy.excludedDirectories.includes(s))) return 'excluded-path';
   if (policy.excludedSuffixes.some((suffix) => name.endsWith(suffix))) return 'excluded-path';
+  if (policy.excludedPrefixes.some((prefix) => isUnder(file.path, prefix))) return 'excluded-path';
   if (languageOf(file.path, policy) === undefined) return 'unsupported-language';
   if (file.patchBytes > limits.maxFileBytes) return 'file-too-large';
+  if (file.patchUnavailable === true) return 'patch-unavailable';
   if (!file.hunks.some((h) => h.addedLines.length > 0)) return 'no-added-lines';
   return undefined;
+}
+
+function isUnder(path: string, prefix: string): boolean {
+  const dir = prefix.endsWith('/') ? prefix : `${prefix}/`;
+  return path === prefix || path.startsWith(dir);
 }
 
 function languageOf(path: string, policy: EligibilityPolicy): SupportedLanguage | undefined {

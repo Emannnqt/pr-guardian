@@ -10,7 +10,7 @@ import { boundaryConfigs } from './eslint/boundaries.js';
 export default defineConfig(
   {
     name: 'pr-guardian/ignores',
-    ignores: ['dist/', 'coverage/', 'node_modules/'],
+    ignores: ['dist/', 'dist-action/', 'coverage/', 'node_modules/'],
   },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,

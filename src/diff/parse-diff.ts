@@ -129,14 +129,7 @@ function parseSection(section: Section): DiffFile {
     i += 2;
   }
 
-  if (!binary) {
-    while (i < lines.length) {
-      const line = lines[i] ?? '';
-      if (!line.startsWith('@@'))
-        fail(`Expected a hunk header, found ${JSON.stringify(line.slice(0, 80))}`);
-      i = parseHunk(lines, i, hunks, fail);
-    }
-  }
+  if (!binary) parseHunks(lines, i, hunks, fail);
 
   if (renameFrom !== undefined || renameTo !== undefined) {
     if (renameFrom === undefined || renameTo === undefined) fail('Incomplete rename header');
@@ -165,6 +158,42 @@ function parseSection(section: Section): DiffFile {
     file.previousPath = normalizeRepoPath(renameFrom);
   }
   return file;
+}
+
+/**
+ * Parse a single file's hunks without file headers, as returned in the `patch`
+ * field of GitHub's pull request files API. Same validation as full diffs.
+ */
+export function parseFilePatch(patch: string, maxBytes: number): Hunk[] {
+  const size = byteLength(patch);
+  if (size > maxBytes) {
+    throw new DiffError(
+      'diff-too-large',
+      `Patch is ${String(size)} bytes; the limit is ${String(maxBytes)}.`,
+    );
+  }
+  const lines = patch.split('\n').map((l) => (l.endsWith('\r') ? l.slice(0, -1) : l));
+  if (lines.at(-1) === '') lines.pop();
+  const hunks: Hunk[] = [];
+  parseHunks(lines, 0, hunks, (message: string): never => {
+    throw new DiffError('malformed-diff', `${message} (file patch)`);
+  });
+  return hunks;
+}
+
+function parseHunks(
+  lines: readonly string[],
+  start: number,
+  hunks: Hunk[],
+  fail: (message: string) => never,
+): void {
+  let i = start;
+  while (i < lines.length) {
+    const line = lines[i] ?? '';
+    if (!line.startsWith('@@'))
+      fail(`Expected a hunk header, found ${JSON.stringify(line.slice(0, 80))}`);
+    i = parseHunk(lines, i, hunks, fail);
+  }
 }
 
 function parseHunk(

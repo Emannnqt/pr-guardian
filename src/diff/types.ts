@@ -34,6 +34,8 @@ export interface DiffFile {
   hunks: Hunk[];
   /** Size in bytes of this file's section of the diff. */
   patchBytes: number;
+  /** The source (e.g. the GitHub API) changed this text file but supplied no patch. */
+  patchUnavailable?: boolean;
 }
 
 export type DiffErrorCode =

@@ -1,0 +1,53 @@
+diff --git a/src/config.ts b/src/config.ts
+new file mode 100644
+index 0000000..5a7a5c5
+--- /dev/null
++++ b/src/config.ts
+@@ -0,0 +1,10 @@
++export const config = {
++  region: 'us-east-1',
++  // Example key from the AWS documentation; intentionally insecure fixture.
++  accessKeyId: 'AKIAIOSFODNN7EXAMPLE',
++};
++
++export function evaluate(expression: string): unknown {
++  debugger;
++  return eval(expression);
++}
+diff --git a/src/deploy.ts b/src/deploy.ts
+index 5e2ca12..fa74420 100644
+--- a/src/deploy.ts
++++ b/src/deploy.ts
+@@ -1,5 +1,5 @@
+-import { execFileSync } from 'node:child_process';
++import { execSync } from 'node:child_process';
+ 
+ export function deploy(branch: string): void {
+-  execFileSync('git', ['push', 'origin', branch]);
++  execSync(`git push origin ${branch}`);
+ }
+diff --git a/src/http-client.ts b/src/http-client.ts
+index 63eb9a0..e923a69 100644
+--- a/src/http-client.ts
++++ b/src/http-client.ts
+@@ -1,5 +1,6 @@
+ import https from 'node:https';
+ 
++// Temporary: staging uses a self-signed certificate.
+ export function createAgent(): https.Agent {
+-  return new https.Agent({ keepAlive: true });
++  return new https.Agent({ keepAlive: true, rejectUnauthorized: false });
+ }
+diff --git a/tests/math.test.ts b/tests/math.test.ts
+index 1ecc0df..14ad3af 100644
+--- a/tests/math.test.ts
++++ b/tests/math.test.ts
+@@ -1,7 +1,7 @@
+ import { describe, expect, it } from 'vitest';
+ 
+ describe('math', () => {
+-  it('adds', () => {
++  it.only('adds', () => {
+     expect(1 + 1).toBe(2);
+   });
+ });

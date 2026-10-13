@@ -1,0 +1,71 @@
+{
+  "reviewerVersion": "0.1.0",
+  "mode": "rules-only",
+  "status": "completed",
+  "findings": [
+    {
+      "title": "Dynamic code execution",
+      "severity": "medium",
+      "category": "security",
+      "confidence": 0.7,
+      "filePath": "src/café.ts",
+      "startLine": 1,
+      "endLine": 1,
+      "explanation": "`eval`, `new Function` and string arguments to `setTimeout`/`setInterval` execute arbitrary code. If any part of the string can be influenced by input, this is a code-injection vector; it also defeats static analysis.",
+      "evidence": "export const value = eval(\"2\");",
+      "suggestedFix": "Replace with explicit logic (for example a lookup table or `JSON.parse` for data), or pass a function instead of a string to timers.",
+      "source": "static-analysis",
+      "ruleId": "builtin/dynamic-code-execution",
+      "id": "9703ed0e117eb794",
+      "fingerprint": "c4cc3b3ae506d4fd"
+    }
+  ],
+  "minSeverity": "low",
+  "belowThresholdCount": 0,
+  "files": {
+    "analyzed": [
+      "src/café.ts",
+      "src/new-name.ts"
+    ],
+    "skipped": [
+      {
+        "path": ".env.local",
+        "reason": "secret-bearing-path"
+      },
+      {
+        "path": "assets/logo.png",
+        "reason": "binary"
+      },
+      {
+        "path": "lib/legacy.js",
+        "reason": "removed"
+      },
+      {
+        "path": "node_modules/pkg/index.js",
+        "reason": "excluded-path"
+      },
+      {
+        "path": "scripts/tool.py",
+        "reason": "unsupported-language"
+      },
+      {
+        "path": "src/types.d.ts",
+        "reason": "excluded-path"
+      }
+    ]
+  },
+  "analyzers": [
+    {
+      "analyzer": "builtin-rules",
+      "status": "succeeded",
+      "durationMs": 0,
+      "findingCount": 1,
+      "diagnostics": []
+    }
+  ],
+  "limitations": [
+    "1 file in unsupported languages was not analyzed. Only TypeScript and JavaScript are supported.",
+    "Only added lines are analyzed, line by line, with a fixed rule set; issues that depend on wider context are not detected."
+  ],
+  "generatedAt": "2026-01-01T00:00:00.000Z"
+}

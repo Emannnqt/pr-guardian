@@ -1,0 +1,127 @@
+{
+  "reviewerVersion": "0.1.0",
+  "mode": "rules-only",
+  "status": "completed",
+  "findings": [
+    {
+      "title": "Possible hardcoded credential (AWS access key ID)",
+      "severity": "high",
+      "category": "security",
+      "confidence": 0.9,
+      "filePath": "src/config.ts",
+      "startLine": 4,
+      "endLine": 4,
+      "explanation": "This added line matches the format of a real credential. Secrets committed to source control are exposed to everyone with read access and remain in git history even after removal.",
+      "evidence": "accessKeyId: '[REDACTED AWS access key ID]',",
+      "suggestedFix": "Remove the value, load it from an environment variable or secret manager, and rotate the credential if it was ever valid.",
+      "source": "static-analysis",
+      "ruleId": "builtin/hardcoded-secret",
+      "id": "4c006ead59dce5ed",
+      "fingerprint": "f4e2058fb54397d2"
+    },
+    {
+      "title": "Shell command built with string interpolation",
+      "severity": "high",
+      "category": "security",
+      "confidence": 0.6,
+      "filePath": "src/deploy.ts",
+      "startLine": 4,
+      "endLine": 4,
+      "explanation": "`exec`/`execSync` run their argument through a shell. Interpolating values into the command string allows command injection if any value can be influenced by a user.",
+      "evidence": "execSync(`git push origin ${branch}`);",
+      "suggestedFix": "Use `execFile`/`spawn` with an argument array (no shell), or strictly validate every interpolated value.",
+      "source": "static-analysis",
+      "ruleId": "builtin/shell-command-interpolation",
+      "id": "82c3cd29b45dde41",
+      "fingerprint": "3520048b821f82e7"
+    },
+    {
+      "title": "TLS certificate verification disabled",
+      "severity": "high",
+      "category": "security",
+      "confidence": 0.85,
+      "filePath": "src/http-client.ts",
+      "startLine": 5,
+      "endLine": 5,
+      "explanation": "Disabling certificate verification lets anyone on the network path impersonate the server and read or modify the traffic.",
+      "evidence": "return new https.Agent({ keepAlive: true, rejectUnauthorized: false });",
+      "suggestedFix": "Keep verification enabled. For private certificate authorities, pass the CA certificate (for example via the `ca` option or NODE_EXTRA_CA_CERTS) instead.",
+      "source": "static-analysis",
+      "ruleId": "builtin/tls-verification-disabled",
+      "id": "ad2ef53feea6cd51",
+      "fingerprint": "52c2d32c795e4d18"
+    },
+    {
+      "title": "Dynamic code execution",
+      "severity": "medium",
+      "category": "security",
+      "confidence": 0.7,
+      "filePath": "src/config.ts",
+      "startLine": 9,
+      "endLine": 9,
+      "explanation": "`eval`, `new Function` and string arguments to `setTimeout`/`setInterval` execute arbitrary code. If any part of the string can be influenced by input, this is a code-injection vector; it also defeats static analysis.",
+      "evidence": "return eval(expression);",
+      "suggestedFix": "Replace with explicit logic (for example a lookup table or `JSON.parse` for data), or pass a function instead of a string to timers.",
+      "source": "static-analysis",
+      "ruleId": "builtin/dynamic-code-execution",
+      "id": "175d5393f178d322",
+      "fingerprint": "3f1b02dd224257fb"
+    },
+    {
+      "title": "Focused test left in code",
+      "severity": "medium",
+      "category": "testing",
+      "confidence": 0.95,
+      "filePath": "tests/math.test.ts",
+      "startLine": 4,
+      "endLine": 4,
+      "explanation": "`.only` (or `fit`/`fdescribe`) makes the test runner skip every other test in the file or suite, so CI can pass while most tests silently do not run.",
+      "evidence": "it.only('adds', () => {",
+      "suggestedFix": "Remove `.only` (or rename `fit`/`fdescribe` back to `it`/`describe`) before merging.",
+      "source": "static-analysis",
+      "ruleId": "builtin/focused-test",
+      "id": "7e0a422b29080295",
+      "fingerprint": "3c8f75e95275f302"
+    },
+    {
+      "title": "Debugger statement left in code",
+      "severity": "low",
+      "category": "reliability",
+      "confidence": 0.95,
+      "filePath": "src/config.ts",
+      "startLine": 8,
+      "endLine": 8,
+      "explanation": "A `debugger` statement pauses execution whenever developer tools or an inspector are attached, and is almost always a leftover from debugging.",
+      "evidence": "debugger;",
+      "suggestedFix": "Remove the `debugger` statement.",
+      "source": "static-analysis",
+      "ruleId": "builtin/debugger-statement",
+      "id": "0ae95a3469b37389",
+      "fingerprint": "acc8f353861431b3"
+    }
+  ],
+  "minSeverity": "low",
+  "belowThresholdCount": 0,
+  "files": {
+    "analyzed": [
+      "src/config.ts",
+      "src/deploy.ts",
+      "src/http-client.ts",
+      "tests/math.test.ts"
+    ],
+    "skipped": []
+  },
+  "analyzers": [
+    {
+      "analyzer": "builtin-rules",
+      "status": "succeeded",
+      "durationMs": 0,
+      "findingCount": 6,
+      "diagnostics": []
+    }
+  ],
+  "limitations": [
+    "Only added lines are analyzed, line by line, with a fixed rule set; issues that depend on wider context are not detected."
+  ],
+  "generatedAt": "2026-01-01T00:00:00.000Z"
+}

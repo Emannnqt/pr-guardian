@@ -4,3 +4,5 @@ node_modules/
 package-lock.json
 # Source specification is kept byte-for-byte as authored.
 PR_Guardian_Project_Specification_v1.1.md
+# Golden reports must match generated output byte-for-byte.
+fixtures/expected-reports/

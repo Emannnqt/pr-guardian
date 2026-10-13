@@ -1,0 +1,44 @@
+{
+  "reviewerVersion": "0.1.0",
+  "mode": "rules-only",
+  "status": "completed",
+  "findings": [
+    {
+      "title": "Dynamic code execution",
+      "severity": "medium",
+      "category": "security",
+      "confidence": 0.7,
+      "filePath": "src/handler.ts",
+      "startLine": 4,
+      "endLine": 4,
+      "explanation": "`eval`, `new Function` and string arguments to `setTimeout`/`setInterval` execute arbitrary code. If any part of the string can be influenced by input, this is a code-injection vector; it also defeats static analysis.",
+      "evidence": "return eval(`<script>alert(1)</script> @admin [x](javascript:alert(1)) ``` + input);",
+      "suggestedFix": "Replace with explicit logic (for example a lookup table or `JSON.parse` for data), or pass a function instead of a string to timers.",
+      "source": "static-analysis",
+      "ruleId": "builtin/dynamic-code-execution",
+      "id": "51841a1a37fa33a8",
+      "fingerprint": "94ce708b1c520ac9"
+    }
+  ],
+  "minSeverity": "low",
+  "belowThresholdCount": 0,
+  "files": {
+    "analyzed": [
+      "src/handler.ts"
+    ],
+    "skipped": []
+  },
+  "analyzers": [
+    {
+      "analyzer": "builtin-rules",
+      "status": "succeeded",
+      "durationMs": 0,
+      "findingCount": 1,
+      "diagnostics": []
+    }
+  ],
+  "limitations": [
+    "Only added lines are analyzed, line by line, with a fixed rule set; issues that depend on wider context are not detected."
+  ],
+  "generatedAt": "2026-01-01T00:00:00.000Z"
+}

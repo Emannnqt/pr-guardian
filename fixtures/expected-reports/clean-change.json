@@ -1,0 +1,27 @@
+{
+  "reviewerVersion": "0.1.0",
+  "mode": "rules-only",
+  "status": "completed",
+  "findings": [],
+  "minSeverity": "low",
+  "belowThresholdCount": 0,
+  "files": {
+    "analyzed": [
+      "src/format.ts"
+    ],
+    "skipped": []
+  },
+  "analyzers": [
+    {
+      "analyzer": "builtin-rules",
+      "status": "succeeded",
+      "durationMs": 0,
+      "findingCount": 0,
+      "diagnostics": []
+    }
+  ],
+  "limitations": [
+    "Only added lines are analyzed, line by line, with a fixed rule set; issues that depend on wider context are not detected."
+  ],
+  "generatedAt": "2026-01-01T00:00:00.000Z"
+}

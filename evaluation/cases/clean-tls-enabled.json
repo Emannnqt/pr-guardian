@@ -1,0 +1,7 @@
+{
+  "id": "clean-tls-enabled",
+  "group": "clean",
+  "description": "TLS verification explicitly enabled with a private CA.",
+  "expected": [],
+  "acceptable": []
+}

@@ -1,0 +1,13 @@
+diff --git a/src/payments.ts b/src/payments.ts
+new file mode 100644
+index 0000000..4fc886d
+--- /dev/null
++++ b/src/payments.ts
+@@ -0,0 +1,7 @@
++import { charge } from './gateway.js';
++
++export async function pay(amount: number): Promise<void> {
++  try {
++    await charge(amount);
++  } catch {}
++}

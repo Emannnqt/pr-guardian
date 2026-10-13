@@ -1,0 +1,13 @@
+{
+  "id": "sec-hardcoded-key",
+  "group": "security",
+  "description": "Cloud access key committed in source (AWS documentation example key).",
+  "expected": [
+    {
+      "file": "src/storage.ts",
+      "line": 3,
+      "issue": "Hardcoded credential"
+    }
+  ],
+  "acceptable": []
+}

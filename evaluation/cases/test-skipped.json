@@ -1,0 +1,13 @@
+{
+  "id": "test-skipped",
+  "group": "testing",
+  "description": "A failing test is skipped instead of fixed.",
+  "expected": [
+    {
+      "file": "tests/parse.test.ts",
+      "line": 4,
+      "issue": "Test skipped (.skip)"
+    }
+  ],
+  "acceptable": []
+}

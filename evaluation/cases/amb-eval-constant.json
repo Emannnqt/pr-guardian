@@ -1,0 +1,13 @@
+{
+  "id": "amb-eval-constant",
+  "group": "ambiguous",
+  "description": "eval of a constant string in a build script; risky style but no injection.",
+  "expected": [],
+  "acceptable": [
+    {
+      "file": "scripts/build.ts",
+      "line": 1,
+      "reason": "eval of a constant is debatable: no injection, but still discouraged"
+    }
+  ]
+}

@@ -1,0 +1,13 @@
+{
+  "id": "sec-sql-concatenation",
+  "group": "security",
+  "description": "SQL query built by string concatenation with user input.",
+  "expected": [
+    {
+      "file": "src/users.ts",
+      "line": 4,
+      "issue": "SQL injection"
+    }
+  ],
+  "acceptable": []
+}

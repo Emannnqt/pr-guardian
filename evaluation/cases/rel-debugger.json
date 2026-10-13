@@ -1,0 +1,13 @@
+{
+  "id": "rel-debugger",
+  "group": "reliability",
+  "description": "Debugger statement left in request handling.",
+  "expected": [
+    {
+      "file": "src/handler.ts",
+      "line": 2,
+      "issue": "Debugger statement left in code"
+    }
+  ],
+  "acceptable": []
+}

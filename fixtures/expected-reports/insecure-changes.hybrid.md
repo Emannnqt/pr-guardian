@@ -1,6 +1,6 @@
 ## PR Guardian review
 
-**Status:** ⚠️ Completed with limitations · **Mode:** hybrid · **Reviewer:** v0.1.0
+**Status:** ⚠️ Completed with limitations · **Mode:** hybrid · **Reviewer:** v1.0.0
 
 **AI reviewer:** recorded · model `fixture` · prompt `review-v1`
 

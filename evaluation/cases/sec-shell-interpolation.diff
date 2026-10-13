@@ -1,0 +1,12 @@
+diff --git a/src/deploy.ts b/src/deploy.ts
+index 5e2ca12..fa74420 100644
+--- a/src/deploy.ts
++++ b/src/deploy.ts
+@@ -1,5 +1,5 @@
+-import { execFileSync } from 'node:child_process';
++import { execSync } from 'node:child_process';
+ 
+ export function deploy(branch: string): void {
+-  execFileSync('git', ['push', 'origin', branch]);
++  execSync(`git push origin ${branch}`);
+ }

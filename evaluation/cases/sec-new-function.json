@@ -1,0 +1,13 @@
+{
+  "id": "sec-new-function",
+  "group": "security",
+  "description": "Template string compiled with new Function from user-provided text.",
+  "expected": [
+    {
+      "file": "src/template.ts",
+      "line": 2,
+      "issue": "Code injection via new Function"
+    }
+  ],
+  "acceptable": []
+}

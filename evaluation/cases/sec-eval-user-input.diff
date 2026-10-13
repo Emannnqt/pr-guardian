@@ -1,0 +1,13 @@
+diff --git a/src/calc.ts b/src/calc.ts
+index 6f0ba02..614196b 100644
+--- a/src/calc.ts
++++ b/src/calc.ts
+@@ -1,3 +1,6 @@
+-export function calculate(expr: string): number {
+-  return Number(expr);
++import type { Request } from 'express';
++
++export function calculate(req: Request): unknown {
++  const expr = String(req.query.expr);
++  return eval(expr);
+ }

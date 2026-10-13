@@ -1,0 +1,7 @@
+{
+  "id": "clean-string-test-data",
+  "group": "clean",
+  "description": "Rule patterns appear only inside string literals (test data).",
+  "expected": [],
+  "acceptable": []
+}

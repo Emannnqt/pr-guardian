@@ -1,0 +1,13 @@
+{
+  "id": "rel-swallowed-error",
+  "group": "reliability",
+  "description": "Payment errors are swallowed by an empty catch.",
+  "expected": [
+    {
+      "file": "src/payments.ts",
+      "line": 6,
+      "issue": "Errors silently ignored"
+    }
+  ],
+  "acceptable": []
+}

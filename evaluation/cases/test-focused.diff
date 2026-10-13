@@ -1,0 +1,12 @@
+diff --git a/tests/math.test.ts b/tests/math.test.ts
+index c80d37e..3d2cc8d 100644
+--- a/tests/math.test.ts
++++ b/tests/math.test.ts
+@@ -1,6 +1,6 @@
+ import { expect, it } from 'vitest';
+ 
+-it('adds', () => {
++it.only('adds', () => {
+   expect(1 + 1).toBe(2);
+ });
+ 

@@ -1,0 +1,11 @@
+diff --git a/src/git.ts b/src/git.ts
+new file mode 100644
+index 0000000..3a9c4df
+--- /dev/null
++++ b/src/git.ts
+@@ -0,0 +1,5 @@
++import { execFileSync } from 'node:child_process';
++
++export function checkout(branch: string): void {
++  execFileSync('git', ['checkout', branch]);
++}

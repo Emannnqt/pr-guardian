@@ -1,0 +1,9 @@
+diff --git a/src/notes.ts b/src/notes.ts
+new file mode 100644
+index 0000000..f5f123c
+--- /dev/null
++++ b/src/notes.ts
+@@ -0,0 +1,3 @@
++// We never call eval( here, and tests must not use it.only(.
++/* debugger; is banned too. */
++export const NOTE = 'see comments';

@@ -1780,7 +1780,7 @@ function parseHunk(lines, start, hunks, fail) {
 }
 
 // src/version.ts
-var VERSION = "0.1.0";
+var VERSION = "1.0.0";
 
 // node_modules/zod/v4/classic/external.js
 var external_exports = {};

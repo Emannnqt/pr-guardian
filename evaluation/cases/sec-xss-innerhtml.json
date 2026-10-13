@@ -1,0 +1,13 @@
+{
+  "id": "sec-xss-innerhtml",
+  "group": "security",
+  "description": "User-controlled comment rendered with innerHTML.",
+  "expected": [
+    {
+      "file": "src/comments.ts",
+      "line": 2,
+      "issue": "Cross-site scripting"
+    }
+  ],
+  "acceptable": []
+}

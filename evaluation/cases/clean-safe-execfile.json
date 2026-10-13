@@ -1,0 +1,7 @@
+{
+  "id": "clean-safe-execfile",
+  "group": "clean",
+  "description": "Arguments passed as an array to execFile (no shell).",
+  "expected": [],
+  "acceptable": []
+}

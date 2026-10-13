@@ -1,0 +1,7 @@
+{
+  "id": "clean-docs-only",
+  "group": "clean",
+  "description": "Documentation-only change (nothing to analyze).",
+  "expected": [],
+  "acceptable": []
+}

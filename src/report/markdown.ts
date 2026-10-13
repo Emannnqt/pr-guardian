@@ -1,5 +1,11 @@
 import { SEVERITIES, type ReviewFinding, type Severity } from '../core/schema.js';
-import type { AnalyzerStatus, ReviewReport, ReviewStatus, SkippedFile } from '../core/types.js';
+import type {
+  AnalyzerStatus,
+  InlineCommentsResult,
+  ReviewReport,
+  ReviewStatus,
+  SkippedFile,
+} from '../core/types.js';
 import type { SkipReason } from '../diff/eligibility.js';
 import { codeBlock, escapeInline, inlineCode } from './escape.js';
 
@@ -107,6 +113,7 @@ export function renderMarkdown(report: ReviewReport, options: RenderOptions = {}
     }
     out.push('');
   }
+  if (report.inlineComments) out.push(inlineCommentsLine(report.inlineComments), '');
 
   out.push(...renderFiles(report.files.analyzed, report.files.skipped));
 
@@ -164,6 +171,43 @@ function renderFinding(n: number, f: ReviewFinding): string[] {
     lines.push(`**Suggested fix:** ${escapeInline(f.suggestedFix)}`, '');
   }
   return lines;
+}
+
+function inlineCommentsLine(r: InlineCommentsResult): string {
+  if (r.unavailable !== undefined)
+    return `**Inline comments:** not posted. ${escapeInline(r.unavailable)}`;
+  if (r.error !== undefined) return `**Inline comments:** ❌ failed. ${escapeInline(r.error)}`;
+  const parts = [`${String(r.posted)} posted`, `${String(r.alreadyPresent)} already present`];
+  if (r.noValidLine > 0)
+    parts.push(`${String(r.noValidLine)} without a changed line (summary only)`);
+  if (r.overLimit > 0) parts.push(`${String(r.overLimit)} over the per-run limit (summary only)`);
+  return `**Inline comments:** ${parts.join(' · ')}`;
+}
+
+/**
+ * Hidden marker identifying a PR Guardian inline comment and the finding it
+ * belongs to. Only trusted when the comment's author is also the expected bot.
+ */
+export const INLINE_MARKER_PATTERN = /<!-- pr-guardian fp=([0-9a-f]{16}) -->/;
+
+/**
+ * Body of an inline review comment. Evidence is omitted: the comment sits on
+ * the line it would quote. All finding text is escaped, and since `>` is
+ * entity-encoded it can never close the marker comment early.
+ */
+export function renderInlineComment(f: ReviewFinding): string {
+  const source = `${f.source}${f.ruleId === undefined ? '' : ` (${inlineCode(f.ruleId)})`}`;
+  const lines = [
+    `**PR Guardian: ${escapeInline(f.title)}**`,
+    '',
+    `${SEVERITY_LABEL[f.severity]} · ${f.category} · confidence ${f.confidence.toFixed(2)} · ${source}`,
+    '',
+    escapeInline(f.explanation),
+  ];
+  if (f.suggestedFix !== undefined)
+    lines.push('', `**Suggested fix:** ${escapeInline(f.suggestedFix)}`);
+  lines.push('', `<!-- pr-guardian fp=${f.fingerprint} -->`);
+  return lines.join('\n');
 }
 
 function locationSuffix(f: ReviewFinding): string {

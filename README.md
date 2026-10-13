@@ -6,10 +6,10 @@ PR Guardian is a GitHub pull request reviewer that combines deterministic static
 optional, schema-validated AI review. It is an assistant, not an authority: **a report with no
 findings does not mean the code is correct or secure.**
 
-> **Status: early development (Milestone 4 of 6).** The review engine runs locally (rules-only, or
-> with an optional local AI reviewer) and as a GitHub Action that publishes a job summary on pull
-> requests. Inline PR comments are not implemented yet. This README only describes what exists
-> today.
+> **Status: early development (Milestone 5 of 6).** The review engine runs locally (rules-only, or
+> with an optional local AI reviewer) and as a GitHub Action that publishes a job summary and,
+> optionally, inline comments on pull requests. Evaluation results are not published yet. This
+> README only describes what exists today.
 
 ## Design goals
 
@@ -60,19 +60,40 @@ no write permission, so it also works for pull requests from forks. The Action r
 through the GitHub API; it never checks out or executes pull request code. It runs the built-in
 rules only (AI review is local-only for now).
 
-| Input            | Default               | Meaning                                                             |
-| ---------------- | --------------------- | ------------------------------------------------------------------- |
-| `min-severity`   | `low`                 | Lowest severity listed; hidden findings are still counted           |
-| `fail-on`        | (empty)               | Fail the step if a listed finding is at or above this severity      |
-| `exclude-paths`  | (empty)               | Extra paths to skip, one per line, e.g. `src/generated`             |
-| `max-files`      | `300`                 | Fail the review above this many changed files (can only be lowered) |
-| `max-file-bytes` | `100000`              | Skip files with a larger diff (can only be lowered)                 |
-| `github-token`   | `${{ github.token }}` | Token with `pull-requests: read` and `contents: read`               |
+| Input                 | Default               | Meaning                                                                   |
+| --------------------- | --------------------- | ------------------------------------------------------------------------- |
+| `min-severity`        | `low`                 | Lowest severity listed; hidden findings are still counted                 |
+| `fail-on`             | (empty)               | Fail the step if a listed finding is at or above this severity            |
+| `exclude-paths`       | (empty)               | Extra paths to skip, one per line, e.g. `src/generated`                   |
+| `max-files`           | `300`                 | Fail the review above this many changed files (can only be lowered)       |
+| `max-file-bytes`      | `100000`              | Skip files with a larger diff (can only be lowered)                       |
+| `github-token`        | `${{ github.token }}` | Token with `pull-requests: read` and `contents: read`                     |
+| `inline-comments`     | `false`               | Also post inline comments on changed lines (needs `pull-requests: write`) |
+| `max-inline-comments` | `10`                  | Most inline comments per run (1–50); the rest stay in the summary         |
+| `comment-author`      | `github-actions[bot]` | Whose comments count as PR Guardian's (change only for custom tokens)     |
 
-Outputs: `status` (`completed`, `partial`, `failed`), `finding-count`, `report-path` (JSON report).
-The step fails when the review fails or `fail-on` is met; otherwise it passes, with a warning when
-the review completed with limitations. See [docs/security.md](docs/security.md) for the trust
-model, fork behavior and how to make the check required.
+Outputs: `status` (`completed`, `partial`, `failed`), `finding-count`, `report-path` (JSON report),
+`inline-comments-posted`. The step fails when the review fails, `fail-on` is met, or inline comments
+were enabled but could not be posted; otherwise it passes, with a warning when the review completed
+with limitations.
+
+### Inline comments
+
+With `inline-comments: true` and `permissions: pull-requests: write`, findings are also posted as
+review comments on the exact added lines, as **one review per run** with event `COMMENT` (PR
+Guardian never approves or requests changes).
+
+- Only **added** lines get comments; findings without one stay in the summary.
+- **Reruns do not repeat comments.** Each comment carries a hidden fingerprint; a finding is
+  skipped when a PR Guardian comment with the same fingerprint is still on that line. GitHub keeps
+  comments attached as surrounding code moves, so shifted findings are not reposted; a finding on
+  rewritten code is commented once more on its new line.
+- Only comments written by `comment-author` count, so a fingerprint pasted into someone else's
+  comment cannot suppress a finding.
+- PR Guardian never edits or deletes comments, its own or anyone else's.
+- Pull requests from forks get a read-only token, so inline comments are skipped with a notice and
+  the job summary is still published. See [docs/security.md](docs/security.md) for the trust
+  model, fork behavior and how to make the check required.
 
 ## Reviewing a diff locally
 
@@ -188,7 +209,6 @@ enforced by lint rules and covered by tests. See [docs/architecture.md](docs/arc
 
 ## Planned
 
-- Inline comments with duplicate suppression (Milestone 5)
 - Evaluation dataset and published methodology (Milestone 6)
 
 ## Security

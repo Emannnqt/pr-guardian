@@ -29,13 +29,25 @@ can guarantee.
 
 ### Permissions
 
-| Permission            | Why                                                                      |
-| --------------------- | ------------------------------------------------------------------------ |
-| `contents: read`      | Check out the Action's own code when it is used as a local action (`./`) |
-| `pull-requests: read` | Read the pull request and its changed files through the API              |
+| Permission             | Why                                                                      |
+| ---------------------- | ------------------------------------------------------------------------ |
+| `contents: read`       | Check out the Action's own code when it is used as a local action (`./`) |
+| `pull-requests: read`  | Read the pull request and its changed files through the API              |
+| `pull-requests: write` | **Only with `inline-comments: true`:** post one `COMMENT` review         |
 
-No write permissions are requested. The token is passed to Octokit only, is never logged, and
-error messages are built from HTTP status codes, never from response bodies.
+By default no write permission is needed. With inline comments enabled, the write permission is
+used for exactly one call per run: creating a review with event `COMMENT` (never `APPROVE` or
+`REQUEST_CHANGES`). PR Guardian never edits or deletes comments. GitHub always gives pull requests
+from forks a read-only token; PR Guardian detects forks and skips inline comments for them instead
+of failing. The token is passed to Octokit only, is never logged, and error messages are built from
+HTTP status codes, never from response bodies.
+
+### Duplicate suppression cannot be spoofed
+
+Each inline comment carries a hidden fingerprint marker. A finding is skipped on reruns only if a
+comment with its marker exists **and** was written by `comment-author` (default
+`github-actions[bot]`), so a pull request author cannot hide a finding by pasting the marker into
+their own comment. Finding text is escaped so it cannot close the marker early.
 
 ### No pull request code is executed
 

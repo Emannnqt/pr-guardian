@@ -6,6 +6,7 @@ export interface GitHubRequest {
   path: string;
   query: URLSearchParams;
   authorization: string | undefined;
+  body: unknown;
 }
 
 export interface GitHubResponse {
@@ -30,17 +31,23 @@ export async function startFakeGitHub(route: GitHubRoute): Promise<FakeGitHub> {
   const requests: GitHubRequest[] = [];
   let baseUrl = '';
   const server = createServer((req, res) => {
-    const url = new URL(req.url ?? '/', baseUrl);
-    const recorded: GitHubRequest = {
-      method: req.method ?? '',
-      path: url.pathname,
-      query: url.searchParams,
-      authorization: req.headers.authorization,
-    };
-    requests.push(recorded);
-    const reply = route(recorded, baseUrl) ?? { status: 404, body: { message: 'Not Found' } };
-    res.writeHead(reply.status ?? 200, { 'content-type': 'application/json', ...reply.headers });
-    res.end(reply.body === undefined ? '' : JSON.stringify(reply.body));
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      const url = new URL(req.url ?? '/', baseUrl);
+      const text = Buffer.concat(chunks).toString('utf8');
+      const recorded: GitHubRequest = {
+        method: req.method ?? '',
+        path: url.pathname,
+        query: url.searchParams,
+        authorization: req.headers.authorization,
+        body: text === '' ? undefined : (JSON.parse(text) as unknown),
+      };
+      requests.push(recorded);
+      const reply = route(recorded, baseUrl) ?? { status: 404, body: { message: 'Not Found' } };
+      res.writeHead(reply.status ?? 200, { 'content-type': 'application/json', ...reply.headers });
+      res.end(reply.body === undefined ? '' : JSON.stringify(reply.body));
+    });
   });
   await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
   baseUrl = `http://127.0.0.1:${String((server.address() as AddressInfo).port)}`;

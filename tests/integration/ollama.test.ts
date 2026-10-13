@@ -47,7 +47,7 @@ describe('Ollama provider', () => {
         url: '/api/chat',
         body: {
           model: 'qwen2.5-coder:3b',
-          stream: false,
+          stream: true,
           format: { type: 'object' },
           options: { temperature: 0 },
           messages: [
@@ -89,6 +89,53 @@ describe('Ollama provider', () => {
       createOllamaProvider({ endpoint: server.endpoint, model: 'm' }).complete(request, signal()),
     );
     expect(error.code).toBe('response-too-large');
+  });
+
+  it('assembles a streamed reply, even with JSON lines split across network writes', async () => {
+    const lines = ['{"findings": ', '[]', '}'].map(
+      (content, i, all) =>
+        `${JSON.stringify({ message: { content }, done: i === all.length - 1 })}\n`,
+    );
+    const raw = lines.join('');
+    server = await startFakeOllama((_req, res) => {
+      res.writeHead(200, { 'content-type': 'application/x-ndjson' });
+      // Write in awkward fragments to exercise line reassembly.
+      const pieces = [raw.slice(0, 7), raw.slice(7, 40), raw.slice(40)];
+      let i = 0;
+      const next = () => {
+        if (i < pieces.length) {
+          res.write(pieces[i++]);
+          setTimeout(next, 5);
+        } else {
+          res.end();
+        }
+      };
+      next();
+    });
+    const provider = createOllamaProvider({ endpoint: server.endpoint, model: 'm' });
+    expect(await provider.complete(request, signal())).toBe('{"findings": []}');
+  });
+
+  it('rejects a stream that ends before the reply is complete', async () => {
+    server = await startFakeOllama((_req, res) => {
+      res.end(`${JSON.stringify({ message: { content: '{"find' }, done: false })}\n`);
+    });
+    const error = await errorOf(
+      createOllamaProvider({ endpoint: server.endpoint, model: 'm' }).complete(request, signal()),
+    );
+    expect(error.code).toBe('invalid-response');
+    expect(error.message).toMatch(/ended before the reply was complete/);
+  });
+
+  it('reports an error line in the stream without echoing it', async () => {
+    server = await startFakeOllama((_req, res) => {
+      res.end(`${JSON.stringify({ error: 'model runner crashed: secret detail' })}\n`);
+    });
+    const error = await errorOf(
+      createOllamaProvider({ endpoint: server.endpoint, model: 'm' }).complete(request, signal()),
+    );
+    expect(error.code).toBe('invalid-response');
+    expect(error.message).not.toContain('secret detail');
   });
 
   it('rejects a response without message content', async () => {

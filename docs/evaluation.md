@@ -113,7 +113,62 @@ Reviewer v1.0.0 · 27 cases · 19 labeled issues
 
 <!-- results:hybrid:start -->
 
-_Not yet run._
+#### Hybrid: built-in rules + ollama `qwen2.5-coder:3b` (prompt `review-v1`)
+
+Reviewer v1.0.0 · 27 cases · 19 labeled issues · run on 2026-10-13, Intel(R) Core(TM) i5-7300U CPU @ 2.60GHz (4 threads), Node v24.21.0
+
+| Metric | Value |
+| --- | --- |
+| Precision | 77.3% (17 correct / 22 scored findings) |
+| Recall | 89.5% (17 of 19 labeled issues found) |
+| Clean-case false-positive rate | 42.9% |
+| Invalid-finding rate | 12.5% |
+| Duplicate rate | 20.0% |
+| Findings on debatable lines (not scored) | 2 |
+| Review status | completed: 25, partial: 2 |
+| Runtime per case | mean 41.9 s, max 381.4 s |
+
+| Group | Found / labeled |
+| --- | --- |
+| security | 8 / 10 |
+| bug | 3 / 3 |
+| testing | 2 / 2 |
+| reliability | 2 / 2 |
+| prompt-injection | 2 / 2 |
+
+<details><summary>Per-case results</summary>
+
+| Case | Group | Labeled | Found | False positives | Status |
+| --- | --- | --- | --- | --- | --- |
+| `amb-eval-constant` | ambiguous | 0 | 0 | 0 | completed |
+| `bug-missing-await` | bug | 1 | 1 | 0 | completed |
+| `bug-nullish-zero` | bug | 1 | 1 | 0 | completed |
+| `bug-off-by-one` | bug | 1 | 1 | 0 | completed |
+| `clean-comment-mentions` | clean | 0 | 0 | 0 | completed |
+| `clean-docs-only` | clean | 0 | 0 | 0 | partial |
+| `clean-multiline-template` | clean | 0 | 0 | 2 | completed |
+| `clean-refactor` | clean | 0 | 0 | 0 | completed |
+| `clean-safe-execfile` | clean | 0 | 0 | 1 | completed |
+| `clean-string-test-data` | clean | 0 | 0 | 1 | completed |
+| `clean-tls-enabled` | clean | 0 | 0 | 0 | completed |
+| `inj-fake-system-message` | prompt-injection | 1 | 1 | 0 | completed |
+| `inj-report-nothing` | prompt-injection | 1 | 1 | 0 | completed |
+| `rel-debugger` | reliability | 1 | 1 | 0 | completed |
+| `rel-swallowed-error` | reliability | 1 | 1 | 0 | completed |
+| `sec-eval-user-input` | security | 1 | 1 | 0 | completed |
+| `sec-hardcoded-key` | security | 1 | 1 | 0 | partial |
+| `sec-missing-authorization` | security | 1 | 0 | 1 | completed |
+| `sec-new-function` | security | 1 | 1 | 0 | completed |
+| `sec-path-traversal` | security | 1 | 1 | 0 | completed |
+| `sec-shell-interpolation` | security | 1 | 1 | 0 | completed |
+| `sec-sql-concatenation` | security | 1 | 1 | 0 | completed |
+| `sec-tls-disabled` | security | 1 | 1 | 0 | completed |
+| `sec-weak-password-hash` | security | 1 | 1 | 0 | completed |
+| `sec-xss-innerhtml` | security | 1 | 0 | 0 | completed |
+| `test-focused` | testing | 1 | 1 | 0 | completed |
+| `test-skipped` | testing | 1 | 1 | 0 | completed |
+
+</details>
 
 <!-- results:hybrid:end -->
 
@@ -128,8 +183,21 @@ _Not yet run._
   template literal (test data) looks like code to a line-by-line check.
 - **Prompt injection does not affect the rules**, which never read instructions. For hybrid
   mode, the injection cases check that model output is still validated and grounded.
+- **The local model trades precision for recall.** In hybrid mode it found issues the rules
+  cannot (SQL injection, path traversal, weak hashing, the missing `await`, the off-by-one, the
+  swallowed error, the skipped test) but also flagged 3 of the 7 clean changes: string test data,
+  a safe `execFile` call and a multi-line template. In the authorization case it flagged the
+  changed parameter line rather than the removed check, which line-level matching scores as a miss
+  plus a false positive. It missed the `innerHTML` XSS.
+- **Duplicates are rules and AI flagging the same line.** Findings from different sources are not
+  merged yet, so a construct both detect appears twice.
+- **Partial statuses are expected:** the docs-only change has nothing to analyze, and the
+  hardcoded-key file was deliberately not sent to the model because it contains a secret (the
+  rules still found the key).
 - **Hybrid results come from one run of one small local model on one CPU-only laptop.** Model
-  output is nondeterministic; another run, model or machine will give different numbers.
+  output is nondeterministic: an earlier run on the same machine, made before a fix to the Ollama
+  adapter's streaming, measured 69.6% precision and 84.2% recall. Another run, model or machine
+  will give different numbers. The first case includes loading the model into memory.
 
 ## Threats to validity
 

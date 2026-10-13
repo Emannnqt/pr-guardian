@@ -250,10 +250,20 @@ a description of this dataset, not of real-world performance.
 
 ## Roadmap
 
-- More languages, each with its own rules and evaluation cases
-- Semgrep with project-owned rules behind the existing analyzer interface
-- AI review in the Action with a self-hosted model endpoint
-- Larger, independently labeled evaluation set
+Planned, in rough order of value:
+
+- **Secret detection in every text file.** Today the secret check, like all rules, runs only on
+  TypeScript and JavaScript; a key pasted into YAML, JSON or Python is not flagged. Secrets look
+  the same in any language, so this check can cover all text files.
+- **Python support.** Rules for risky Python patterns (`os.system` with interpolated strings,
+  `subprocess(..., shell=True)`, `pickle.loads`, `yaml.load`, `verify=False`) plus evaluation
+  cases. Enabling the language also lets the local AI reviewer see Python files.
+- **AI review inside the GitHub Action.** Run Ollama on the GitHub runner itself (cached model,
+  no secrets, works for fork pull requests), with new `mode` and `ai-model` inputs.
+- **Merge rule and AI findings on the same line** so one issue is reported once.
+- More languages, each with its own rules and evaluation cases; Semgrep with project-owned rules
+  behind the existing analyzer interface.
+- A larger, independently labeled evaluation set.
 
 ## Contributing and license
 

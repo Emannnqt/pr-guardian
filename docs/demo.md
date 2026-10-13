@@ -109,7 +109,8 @@ this repository.
 
 ## Screenshots
 
-For the README and release, capture from the demo pull request:
+From the live run on [PR #1](https://github.com/Emannnqt/pr-guardian/pull/1):
 
-- `docs/images/inline-comments.png`: the **Files changed** tab with both inline comments
-- `docs/images/job-summary.png`: the **Summary** page of the PR Guardian run
+![Inline review comment on the execSync line](images/inline-comments.png)
+
+![Job summary with two high-severity findings](images/job-summary.png)

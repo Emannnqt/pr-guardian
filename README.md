@@ -59,6 +59,14 @@ execSync(`git push origin ${branch}`);
 …
 ````
 
+On GitHub, the same review appears as an inline comment on the changed line and as the run's
+job summary (screenshots from the live [PR #1](https://github.com/Emannnqt/pr-guardian/pull/1) run,
+made before the version was set to 1.0.0):
+
+![Inline review comment from PR Guardian on the execSync line of PR #1](docs/images/inline-comments.png)
+
+![PR Guardian job summary for PR #1 listing two high-severity findings](docs/images/job-summary.png)
+
 With `inline-comments: true` the same findings appear as review comments on those lines, and a
 re-run adds nothing new. Full sample reports: [`fixtures/expected-reports/`](fixtures/expected-reports/)
 (for example [insecure-changes.md](fixtures/expected-reports/insecure-changes.md) and the

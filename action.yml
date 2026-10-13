@@ -31,6 +31,19 @@ inputs:
     required: false
     default: '100000'
 
+  inline-comments:
+    description: 'Also post findings as inline review comments on the changed lines (true/false). Needs "pull-requests: write"; skipped for fork PRs.'
+    required: false
+    default: 'false'
+  max-inline-comments:
+    description: Most inline comments to post per run (1 to 50). Further findings stay in the summary.
+    required: false
+    default: '10'
+  comment-author:
+    description: Login whose comments count as PR Guardian's own when skipping duplicates. Change only when using a custom token.
+    required: false
+    default: github-actions[bot]
+
 outputs:
   status:
     description: Review status, one of completed, partial or failed.
@@ -38,6 +51,8 @@ outputs:
     description: Number of findings listed in the summary.
   report-path:
     description: Path of the full JSON report on the runner.
+  inline-comments-posted:
+    description: Number of inline review comments posted by this run.
 
 runs:
   using: node24

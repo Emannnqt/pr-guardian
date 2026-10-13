@@ -12,11 +12,13 @@ import { SEVERITIES, SEVERITY_RANK, type Severity } from '../core/schema.js';
 import type { ReviewReport } from '../core/types.js';
 import { DEFAULT_ELIGIBILITY_POLICY } from '../diff/eligibility.js';
 import { DEFAULT_DIFF_LIMITS } from '../diff/limits.js';
+import { commentableLines } from '../diff/line-map.js';
 import { normalizeRepoPath } from '../diff/paths.js';
 import { DiffError } from '../diff/types.js';
 import { createGitHubClient, GitHubError } from '../github/client.js';
 import { GitHubEventError, parsePullRequestEvent } from '../github/event.js';
-import { loadPullRequest } from '../github/pull-request.js';
+import { listOwnComments, planInlineComments, postReview } from '../github/inline-comments.js';
+import { loadPullRequest, type LoadedPullRequest } from '../github/pull-request.js';
 import { writeJobSummary } from '../github/publish-summary.js';
 import { escapeInline } from '../report/escape.js';
 import { VERSION } from '../version.js';
@@ -39,9 +41,15 @@ export interface ActionInputs {
   excludePaths: string[];
   maxFiles: number;
   maxFileBytes: number;
+  inlineComments: boolean;
+  maxInlineComments: number;
+  commentAuthor: string;
 }
 
 const API_TIME_LIMIT_MS = 120_000;
+const DEFAULT_MAX_INLINE_COMMENTS = 10;
+const MAX_INLINE_COMMENTS = 50;
+const DEFAULT_COMMENT_AUTHOR = 'github-actions[bot]';
 const MAX_EXCLUDE_ENTRIES = 100;
 
 /** Action inputs arrive as INPUT_<NAME> with the hyphen kept (e.g. INPUT_MIN-SEVERITY). */
@@ -104,7 +112,38 @@ export function parseActionInputs(env: Env): ActionInputs | { error: string } {
     }
   }
 
-  return { token, minSeverity, failOn, excludePaths, maxFiles, maxFileBytes };
+  const inline = input(env, 'inline-comments').toLowerCase();
+  if (inline !== '' && inline !== 'true' && inline !== 'false') {
+    return { error: 'Input "inline-comments" must be true or false.' };
+  }
+  const maxInlineValue = input(env, 'max-inline-comments');
+  const maxInlineComments =
+    maxInlineValue === '' ? DEFAULT_MAX_INLINE_COMMENTS : Number(maxInlineValue);
+  if (
+    !Number.isInteger(maxInlineComments) ||
+    maxInlineComments < 1 ||
+    maxInlineComments > MAX_INLINE_COMMENTS
+  ) {
+    return {
+      error: `Input "max-inline-comments" must be a whole number from 1 to ${String(MAX_INLINE_COMMENTS)}.`,
+    };
+  }
+  const commentAuthor = input(env, 'comment-author') || DEFAULT_COMMENT_AUTHOR;
+  if (!/^[A-Za-z0-9][A-Za-z0-9-]{0,99}(?:\[bot\])?$/.test(commentAuthor)) {
+    return { error: 'Input "comment-author" must be a GitHub login, e.g. github-actions[bot].' };
+  }
+
+  return {
+    token,
+    minSeverity,
+    failOn,
+    excludePaths,
+    maxFiles,
+    maxFileBytes,
+    inlineComments: inline === 'true',
+    maxInlineComments,
+    commentAuthor,
+  };
 }
 
 /**
@@ -189,9 +228,56 @@ export async function runAction(env: Env, io: ActionIo): Promise<number> {
     ...(io.retryBaseMs === undefined ? {} : { retryBaseMs: io.retryBaseMs }),
   });
 
+  /**
+   * Post findings as one COMMENT review on their added lines, skipping any a
+   * PR Guardian comment already covers. Forks get a read-only token, so they
+   * are skipped up front rather than failing.
+   */
+  const publishInlineComments = async (
+    reviewed: ReviewReport,
+    loaded: LoadedPullRequest,
+  ): Promise<NonNullable<ReviewReport['inlineComments']>> => {
+    const empty = { posted: 0, alreadyPresent: 0, noValidLine: 0, overLimit: 0 };
+    if (event.isFork) {
+      return {
+        ...empty,
+        unavailable:
+          'Pull requests from forks get a read-only token, so findings are in the summary only.',
+      };
+    }
+    const signal = AbortSignal.timeout(API_TIME_LIMIT_MS);
+    try {
+      const existing = await listOwnComments(client, event, inputs.commentAuthor, signal);
+      const plan = planInlineComments(
+        reviewed.findings,
+        commentableLines(loaded.files),
+        existing,
+        inputs.maxInlineComments,
+      );
+      if (plan.toPost.length > 0) {
+        await postReview(client, event, loaded.headSha, plan.toPost, signal);
+      }
+      return {
+        posted: plan.toPost.length,
+        alreadyPresent: plan.alreadyPresent,
+        noValidLine: plan.noValidLine,
+        overLimit: plan.overLimit,
+      };
+    } catch (error: unknown) {
+      const message =
+        error instanceof GitHubError ? error.message : 'Unexpected error while posting comments.';
+      const hint =
+        error instanceof GitHubError && error.code === 'forbidden'
+          ? ' Inline comments need "pull-requests: write" in the workflow permissions.'
+          : '';
+      return { ...empty, error: `${message}${hint}` };
+    }
+  };
+
   let report: ReviewReport;
+  let pr: LoadedPullRequest | undefined;
   try {
-    const pr = await loadPullRequest(client, event, limits, AbortSignal.timeout(API_TIME_LIMIT_MS));
+    pr = await loadPullRequest(client, event, limits, AbortSignal.timeout(API_TIME_LIMIT_MS));
     log({ files: pr.files.length, patch_bytes: pr.files.reduce((n, f) => n + f.patchBytes, 0) });
     report = await reviewFiles(pr.files, options, deps);
     if (pr.headSha !== event.headSha) {
@@ -229,6 +315,18 @@ export async function runAction(env: Env, io: ActionIo): Promise<number> {
     below_threshold: report.belowThresholdCount,
   });
 
+  if (inputs.inlineComments && pr !== undefined && report.status !== 'failed') {
+    report.inlineComments = await publishInlineComments(report, pr);
+    const r = report.inlineComments;
+    log({
+      inline_posted: r.posted,
+      already_present: r.alreadyPresent,
+      no_valid_line: r.noValidLine,
+      over_limit: r.overLimit,
+    });
+    if (r.unavailable !== undefined) io.log(noticeCommand(r.unavailable));
+  }
+
   if (summaryPath) await writeJobSummary(report, summaryPath);
   const reportPath = join(env['RUNNER_TEMP'] ?? '.', 'pr-guardian-report.json');
   await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, 'utf8');
@@ -238,12 +336,17 @@ export async function runAction(env: Env, io: ActionIo): Promise<number> {
       outputPath,
       outputEntry('status', report.status) +
         outputEntry('finding-count', String(report.findings.length)) +
-        outputEntry('report-path', reportPath),
+        outputEntry('report-path', reportPath) +
+        outputEntry('inline-comments-posted', String(report.inlineComments?.posted ?? 0)),
     );
   }
 
   if (report.status === 'failed') {
     io.log(errorCommand(`Review failed: ${report.error?.message ?? 'no analysis was performed'}`));
+    return 1;
+  }
+  if (report.inlineComments?.error !== undefined) {
+    io.log(errorCommand(`Inline comments failed: ${report.inlineComments.error}`));
     return 1;
   }
   if (report.status === 'partial') {

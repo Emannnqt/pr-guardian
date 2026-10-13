@@ -229,15 +229,16 @@ oversized input and secret redaction.
 
 On a labeled set of 27 pull-request diffs ([methodology and full results](docs/evaluation.md)):
 
-| Mode       | Precision                                    | Recall | Clean-case false-positive rate |
-| ---------- | -------------------------------------------- | ------ | ------------------------------ |
-| Rules-only | 90.0%                                        | 47.4%  | 14.3%                          |
-| Hybrid     | see [docs/evaluation.md](docs/evaluation.md) |        |                                |
+| Mode                                      | Precision | Recall | Clean-case false-positive rate | Time per case |
+| ----------------------------------------- | --------- | ------ | ------------------------------ | ------------- |
+| Rules-only                                | 90.0%     | 47.4%  | 14.3%                          | milliseconds  |
+| Hybrid (`qwen2.5-coder:3b`, CPU, one run) | 77.3%     | 89.5%  | 42.9%                          | ~42 s         |
 
 The rules are precise but narrow: they find what they target and miss issues that need real
-analysis (authorization, SQL injection, XSS, logic bugs), which the dataset labels on purpose. The
-dataset is small and was written alongside the tool; treat these numbers as a description of this
-dataset, not of real-world performance.
+analysis (authorization, SQL injection, XSS, logic bugs), which the dataset labels on purpose.
+The local model finds most of those, at the cost of more false positives and duplicates. The
+dataset is small and was written alongside the tool, and model runs vary; treat these numbers as
+a description of this dataset, not of real-world performance.
 
 ## Roadmap
 

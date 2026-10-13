@@ -10,17 +10,26 @@ export interface OllamaOptions {
   fetch?: typeof fetch;
 }
 
-/** The chat envelope wraps the model text; allow for JSON escaping overhead. */
-const ENVELOPE_OVERHEAD_BYTES = 16_384;
+/**
+ * Streamed replies arrive as one JSON line per token, so the raw stream is far
+ * larger than the text it carries. The text itself is capped at
+ * `maxResponseBytes`; the raw stream gets a generous separate cap.
+ */
+const RAW_STREAM_FACTOR = 64;
 
-const ChatResponseSchema = z.object({
-  message: z.object({ content: z.string() }),
+const ChunkSchema = z.object({
+  message: z.object({ content: z.string() }).optional(),
+  done: z.boolean().optional(),
+  error: z.string().optional(),
 });
 
 /**
  * Ollama provider using its HTTP chat API with structured outputs
- * (`format` = JSON schema), non-streaming, temperature 0. No SDK, no auth
- * headers, redirects refused, response body read under a byte cap.
+ * (`format` = JSON schema) and temperature 0. The reply is **streamed**:
+ * headers arrive immediately, so a slow CPU-only model is limited only by
+ * our own timeout (a non-streaming request can exceed fetch's built-in
+ * 5-minute wait for response headers). No SDK, no auth headers, redirects
+ * refused, text and raw stream both read under byte caps.
  */
 export function createOllamaProvider(options: OllamaOptions): AiProvider {
   const doFetch = options.fetch ?? fetch;
@@ -40,7 +49,7 @@ export function createOllamaProvider(options: OllamaOptions): AiProvider {
           signal,
           body: JSON.stringify({
             model: options.model,
-            stream: false,
+            stream: true,
             format: request.responseSchema ?? 'json',
             options: { temperature: 0 },
             messages: [
@@ -67,52 +76,76 @@ export function createOllamaProvider(options: OllamaOptions): AiProvider {
         );
       }
 
-      const body = await readCapped(
-        response,
-        request.maxResponseBytes + ENVELOPE_OVERHEAD_BYTES,
-        signal,
-      );
-      let envelope: unknown;
-      try {
-        envelope = JSON.parse(body);
-      } catch {
-        throw new AiProviderError(
-          'invalid-response',
-          'Ollama returned a response that is not JSON.',
-        );
-      }
-      const parsed = ChatResponseSchema.safeParse(envelope);
-      if (!parsed.success) {
-        throw new AiProviderError('invalid-response', 'Ollama response has no message content.');
-      }
-      return parsed.data.message.content;
+      return readChatStream(response, request.maxResponseBytes, signal);
     },
   };
 }
 
-async function readCapped(
+/** Assemble the model text from Ollama's newline-delimited JSON stream. */
+async function readChatStream(
   response: Response,
-  maxBytes: number,
+  maxTextBytes: number,
   signal: AbortSignal,
 ): Promise<string> {
-  if (response.body === null) return '';
+  if (response.body === null) {
+    throw new AiProviderError('invalid-response', 'Ollama returned an empty response.');
+  }
   // Node's fetch typings expose the body stream as `any`; it yields bytes.
   const reader = (response.body as ReadableStream<Uint8Array>).getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
+  const decoder = new TextDecoder();
+  const maxRawBytes = maxTextBytes * RAW_STREAM_FACTOR;
+  let rawBytes = 0;
+  let textBytes = 0;
+  let pending = '';
+  let text = '';
+
+  const tooLarge = async (): Promise<never> => {
+    await reader.cancel().catch(() => undefined);
+    throw new AiProviderError(
+      'response-too-large',
+      `Model response exceeded ${String(maxTextBytes)} bytes.`,
+    );
+  };
+  /** Add one stream line to `text`; returns true when it is the final chunk. */
+  const consume = async (line: string): Promise<boolean> => {
+    if (line.trim() === '') return false;
+    let chunk: z.infer<typeof ChunkSchema>;
+    try {
+      chunk = ChunkSchema.parse(JSON.parse(line));
+    } catch {
+      throw new AiProviderError('invalid-response', 'Ollama returned a malformed stream.');
+    }
+    // Ollama's own error text is not echoed; it can contain request details.
+    if (chunk.error !== undefined) {
+      throw new AiProviderError('invalid-response', 'Ollama reported an error while generating.');
+    }
+    const piece = chunk.message?.content ?? '';
+    textBytes += Buffer.byteLength(piece, 'utf8');
+    if (textBytes > maxTextBytes) await tooLarge();
+    text += piece;
+    return chunk.done === true;
+  };
+
+  let complete = false;
   try {
     for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > maxBytes) {
-        await reader.cancel().catch(() => undefined);
-        throw new AiProviderError(
-          'response-too-large',
-          `Model response exceeded ${String(maxBytes)} bytes.`,
-        );
+      const { done: streamEnded, value } = await reader.read();
+      if (streamEnded) {
+        complete = await consume(pending + decoder.decode());
+        break;
       }
-      chunks.push(value);
+      rawBytes += value.byteLength;
+      if (rawBytes > maxRawBytes) await tooLarge();
+      pending += decoder.decode(value, { stream: true });
+      const lines = pending.split('\n');
+      pending = lines.pop() ?? '';
+      for (const line of lines) {
+        if (await consume(line)) {
+          complete = true;
+          break;
+        }
+      }
+      if (complete) break;
     }
   } catch (error: unknown) {
     if (error instanceof AiProviderError) throw error;
@@ -122,7 +155,16 @@ async function readCapped(
       'Connection to Ollama failed while reading the response.',
     );
   }
-  return Buffer.concat(chunks).toString('utf8');
+  // Stop reading once the final chunk arrived; anything after it is ignored.
+  await reader.cancel().catch(() => undefined);
+
+  if (!complete) {
+    throw new AiProviderError(
+      'invalid-response',
+      'Ollama stream ended before the reply was complete.',
+    );
+  }
+  return text;
 }
 
 function networkCode(error: unknown): string {

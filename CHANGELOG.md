@@ -29,7 +29,12 @@ local AI reviewer, and reports evidence-backed findings.
   comments; capped per run.
 - **Evaluation.** 27 labeled pull-request diffs, a scoring harness (`npm run eval`) and published
   methodology. Rules-only: 90.0% precision, 47.4% recall, 14.3% clean-case false-positive rate.
-  See [docs/evaluation.md](docs/evaluation.md).
+  Hybrid with `qwen2.5-coder:3b` on a CPU-only laptop (one run): 77.3% precision, 89.5% recall,
+  42.9% clean-case false-positive rate, about 42 s per case. See
+  [docs/evaluation.md](docs/evaluation.md).
+- **Ollama adapter streams responses**, so slow CPU-only models are limited only by
+  `--ai-timeout` (found during evaluation: a non-streaming request hit fetch's built-in
+  5-minute wait for response headers).
 
 ### Known limitations
 
@@ -37,7 +42,8 @@ local AI reviewer, and reports evidence-backed findings.
   string can be a false positive. Only added lines are reviewed.
 - TypeScript and JavaScript only.
 - AI review runs only in the local CLI and depends heavily on the model; small local models are
-  slow on CPU and miss issues.
+  slow on CPU, miss issues and add false positives. Findings from rules and AI on the same line
+  are not merged.
 - A pull request can edit the workflow that reviews it; enforcement needs a required check and
   CODEOWNERS on `.github/`.
 - Evaluation numbers describe a small, author-written dataset, not real-world performance.

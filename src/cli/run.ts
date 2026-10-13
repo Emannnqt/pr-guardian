@@ -1,10 +1,15 @@
 import { parseArgs } from 'node:util';
 
+import { createOllamaProvider } from '../ai/ollama.js';
+import { PROMPT_VERSION } from '../ai/prompt.js';
+import { createAiAnalyzer, DEFAULT_AI_REVIEW_OPTIONS } from '../ai/review-diff.js';
+import type { Analyzer } from '../analyzers/analyzer.js';
 import { createBuiltinRulesAnalyzer } from '../analyzers/builtin-rules/index.js';
 import {
   failedReport,
   reviewDiff,
   DEFAULT_REVIEW_OPTIONS,
+  type ReviewDependencies,
   type ReviewOptions,
 } from '../core/review.js';
 import { SEVERITIES, SEVERITY_RANK, type Severity } from '../core/schema.js';
@@ -12,6 +17,7 @@ import type { ReviewReport } from '../core/types.js';
 import { DiffError } from '../diff/types.js';
 import { renderMarkdown } from '../report/markdown.js';
 import { VERSION } from '../version.js';
+import { DEFAULT_AI_ENDPOINT, DEFAULT_AI_TIMEOUT_SECONDS, parseAiOptions } from './ai-options.js';
 
 /**
  * Exit codes keep review status and policy outcome separate (spec §16.9).
@@ -38,6 +44,8 @@ export interface CliIo {
   stderr: (text: string) => void;
   /** Read a file, or stdin for `-`, refusing to buffer more than `maxBytes`. */
   readInput: (source: string, maxBytes: number) => Promise<InputResult>;
+  /** Environment variables; only the PR_GUARDIAN_AI_* names are read. */
+  env?: Readonly<Record<string, string | undefined>>;
   now?: () => Date;
 }
 
@@ -53,6 +61,14 @@ Review options:
   --min-severity <level>     Lowest severity listed in the report (default: low)
   --fail-on <level>          Exit 1 if a listed finding is at or above this severity
                              (default: never; reviews are advisory)
+  --mode <rules-only|hybrid> Add an AI reviewer to the built-in rules (default: rules-only)
+
+AI options (hybrid mode, Ollama):
+  --ai-model <name>          Model to use, e.g. qwen2.5-coder:3b   [env PR_GUARDIAN_AI_MODEL]
+  --ai-endpoint <url>        Ollama URL (default: ${DEFAULT_AI_ENDPOINT})   [env PR_GUARDIAN_AI_ENDPOINT]
+  --ai-timeout <seconds>     Time limit for the model (default: ${String(DEFAULT_AI_TIMEOUT_SECONDS)})
+  --allow-remote-ai          Allow an endpoint that is not on this machine
+                             (diff content is sent to it)
 
 Severity levels: ${SEVERITIES.join(', ')}
 
@@ -65,6 +81,7 @@ Exit codes:
 Examples:
   git diff main...HEAD | pr-guardian review -
   pr-guardian review changes.diff --format json
+  pr-guardian review changes.diff --mode hybrid --ai-model qwen2.5-coder:3b
 `;
 
 export async function run(argv: readonly string[], io: CliIo): Promise<ExitCode> {
@@ -80,6 +97,11 @@ export async function run(argv: readonly string[], io: CliIo): Promise<ExitCode>
         format: { type: 'string' },
         'min-severity': { type: 'string' },
         'fail-on': { type: 'string' },
+        mode: { type: 'string' },
+        'ai-model': { type: 'string' },
+        'ai-endpoint': { type: 'string' },
+        'ai-timeout': { type: 'string' },
+        'allow-remote-ai': { type: 'boolean' },
       },
     });
   } catch (error: unknown) {
@@ -110,8 +132,29 @@ export async function run(argv: readonly string[], io: CliIo): Promise<ExitCode>
   if (minSeverity === null) return usageError(io, 'Invalid --min-severity.');
   if (failOn === null) return usageError(io, 'Invalid --fail-on.');
 
+  const mode = values.mode ?? 'rules-only';
+  if (mode !== 'rules-only' && mode !== 'hybrid') return usageError(io, `Unknown mode "${mode}".`);
+
   const options: ReviewOptions = { ...DEFAULT_REVIEW_OPTIONS, minSeverity };
-  const deps = { analyzers: [createBuiltinRulesAnalyzer()], ...(io.now ? { now: io.now } : {}) };
+  const analyzers: Analyzer[] = [createBuiltinRulesAnalyzer()];
+  const deps: ReviewDependencies = { analyzers, mode, ...(io.now ? { now: io.now } : {}) };
+
+  if (mode === 'hybrid') {
+    const ai = parseAiOptions({
+      model: values['ai-model'] ?? io.env?.['PR_GUARDIAN_AI_MODEL'],
+      endpoint: values['ai-endpoint'] ?? io.env?.['PR_GUARDIAN_AI_ENDPOINT'],
+      timeoutSeconds: values['ai-timeout'],
+      allowRemote: values['allow-remote-ai'] === true,
+    });
+    if ('error' in ai) return usageError(io, ai.error);
+    const provider = createOllamaProvider({ endpoint: ai.endpoint, model: ai.model });
+    analyzers.push(
+      createAiAnalyzer(provider, { ...DEFAULT_AI_REVIEW_OPTIONS, timeoutMs: ai.timeoutMs }),
+    );
+    deps.ai = { provider: provider.id, model: provider.model, promptVersion: PROMPT_VERSION };
+  } else if (values['ai-model'] !== undefined || values['ai-endpoint'] !== undefined) {
+    return usageError(io, 'AI options require --mode hybrid.');
+  }
 
   const input = await io.readInput(source, options.limits.maxDiffBytes);
   if (input.kind === 'error') return usageError(io, input.message);

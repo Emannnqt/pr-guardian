@@ -1,5 +1,5 @@
 import type { DiffLimits } from './limits.js';
-import type { AddedLine, DiffFile } from './types.js';
+import type { AddedLine, DiffFile, Hunk } from './types.js';
 
 export type SupportedLanguage = 'typescript' | 'javascript';
 
@@ -50,6 +50,8 @@ export interface EligibleFile {
   addedLines: AddedLine[];
   /** Added lines left out because they exceed the line-length limit. */
   skippedLongLines: number;
+  /** Hunks with full line context; over-long lines are removed here too. */
+  hunks: Hunk[];
 }
 
 export interface SkippedFile {
@@ -83,6 +85,10 @@ export function classifyFiles(
       language: languageOf(file.path, policy) ?? 'javascript',
       addedLines,
       skippedLongLines: all.length - addedLines.length,
+      hunks: file.hunks.map((h) => ({
+        ...h,
+        lines: h.lines.filter((l) => l.content.length <= limits.maxLineLength),
+      })),
     });
   }
   return { eligible, skipped };

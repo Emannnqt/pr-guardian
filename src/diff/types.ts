@@ -6,6 +6,13 @@ export interface AddedLine {
   content: string;
 }
 
+/** One line of a hunk. `newLine` is set for added and context lines. */
+export interface HunkLine {
+  kind: 'add' | 'context' | 'remove';
+  content: string;
+  newLine?: number;
+}
+
 export interface Hunk {
   oldStart: number;
   oldLines: number;
@@ -13,6 +20,8 @@ export interface Hunk {
   newLines: number;
   addedLines: AddedLine[];
   removedCount: number;
+  /** Every line of the hunk in order, for consumers that need context (the AI reviewer). */
+  lines: HunkLine[];
 }
 
 /** One file in a parsed diff. Paths are validated and normalized repository paths. */

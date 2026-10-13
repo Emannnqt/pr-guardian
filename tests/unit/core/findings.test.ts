@@ -92,6 +92,15 @@ describe('normalizeFindings', () => {
     expect(result.findings).toHaveLength(0); // strict schema: unknown keys are rejected
   });
 
+  it('redacts secrets in every text field, including the title', () => {
+    const key = `AKIA${'T'.repeat(16)}`;
+    const [finding] = normalizeFindings(
+      [candidate({ title: `Leak ${key}`, explanation: key, suggestedFix: key })],
+      reviewed,
+    ).findings;
+    expect(JSON.stringify(finding)).not.toContain(key);
+  });
+
   it('redacts secrets in evidence', () => {
     const key = `AKIA${'Z'.repeat(16)}`;
     const [finding] = normalizeFindings(

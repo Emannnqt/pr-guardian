@@ -6,9 +6,9 @@ PR Guardian is a GitHub pull request reviewer that combines deterministic static
 optional, schema-validated AI review. It is an assistant, not an authority: **a report with no
 findings does not mean the code is correct or secure.**
 
-> **Status: early development (Milestone 2 of 6).** The local, rules-only review engine works.
-> GitHub integration and the AI adapter are not implemented yet. This README only describes what
-> exists today.
+> **Status: early development (Milestone 3 of 6).** The local review engine works in rules-only
+> mode and, optionally, with a local AI reviewer (Ollama). GitHub integration is not implemented
+> yet. This README only describes what exists today.
 
 ## Design goals
 
@@ -73,6 +73,43 @@ timed out or was skipped, a file or line exceeded a limit, or no file was eligib
 
 Detected secrets are redacted in every output format.
 
+### Optional AI review (hybrid mode)
+
+`--mode hybrid` adds a local model reviewer, through [Ollama](https://ollama.com), to the
+built-in rules. AI is **off by default**, and rules-only mode never makes a network request.
+
+```sh
+ollama pull qwen2.5-coder:3b           # ~1.9 GB; runs on CPU-only machines
+node dist/cli/index.js review changes.diff --mode hybrid --ai-model qwen2.5-coder:3b
+```
+
+| Option                   | Default                  | Meaning                                               |
+| ------------------------ | ------------------------ | ----------------------------------------------------- |
+| `--ai-model <name>`      | (required)               | Ollama model; or set `PR_GUARDIAN_AI_MODEL`           |
+| `--ai-endpoint <url>`    | `http://127.0.0.1:11434` | Ollama URL; or set `PR_GUARDIAN_AI_ENDPOINT`          |
+| `--ai-timeout <seconds>` | `300`                    | Time limit for the model                              |
+| `--allow-remote-ai`      | off                      | Required for any endpoint that is not on this machine |
+
+How model output is kept honest:
+
+- The model sees only the changed hunks, wrapped in delimiters with a random per-request nonce,
+  and is told that repository text is data, not instructions. Prompt wording is **not** relied
+  on as a security boundary; the checks below are enforced in code.
+- Its reply must be JSON matching a strict shape (size-capped; one repair retry). Each finding
+  must name a file the model was shown, and its evidence must quote an **added** line, or it is
+  dropped. Line numbers are verified against the diff. `source` is always set to `ai` by
+  PR Guardian, never by the model.
+- If the model is unavailable, times out or replies with junk, the review continues with the
+  rules and is marked _Completed with limitations_; it never looks like a clean AI review.
+
+**Privacy.** Diff content is sent only to the configured endpoint. With the default local
+endpoint it stays on this machine, as far as your Ollama setup keeps it there. Files containing a
+detected credential are never sent; other credential-like values are redacted first.
+
+**Quality.** Small local models running on a CPU are slow (minutes per review) and miss things or
+produce weak findings. AI findings are model output that passed format and evidence checks,
+not verified defects. The prompt is versioned (`review-v1`) and recorded in every report.
+
 ### Limits and exclusions
 
 - Diffs over 1 MB or 300 files are rejected; files whose patch exceeds 100 KB, and added lines
@@ -109,7 +146,6 @@ enforced by lint rules and covered by tests. See [docs/architecture.md](docs/arc
 
 ## Planned
 
-- Optional AI review behind a provider-neutral interface (Milestone 3)
 - GitHub Actions integration and job summary (Milestone 4)
 - Inline comments with duplicate suppression (Milestone 5)
 - Evaluation dataset and published methodology (Milestone 6)

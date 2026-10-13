@@ -85,6 +85,19 @@ describe('module boundaries', () => {
     ).toEqual(['no-restricted-imports']);
   });
 
+  it('AI adapters may implement the analyzer port by type only', async () => {
+    const file = 'src/ai/review-diff.ts';
+    expect(
+      await violations(file, `import type { Analyzer } from '../analyzers/analyzer.js';`),
+    ).toEqual([]);
+    expect(
+      await violations(
+        file,
+        `import { createBuiltinRulesAnalyzer } from '../analyzers/builtin-rules/index.js';`,
+      ),
+    ).toEqual(['no-restricted-imports']);
+  });
+
   it('analyzers may run tools but not publish or call models', async () => {
     const file = 'src/analyzers/semgrep.ts';
     expect(await violations(file, `import { execFile } from 'node:child_process';`)).toEqual([]);

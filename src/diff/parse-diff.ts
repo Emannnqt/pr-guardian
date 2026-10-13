@@ -190,6 +190,7 @@ function parseHunk(
     newLines: num(match[4], 1),
     addedLines: [],
     removedCount: 0,
+    lines: [],
   };
 
   let oldRemaining = hunk.oldLines;
@@ -208,15 +209,18 @@ function parseHunk(
     if (marker === '+') {
       if (newRemaining === 0) fail('Hunk has more added lines than its header declares');
       hunk.addedLines.push({ line: newLine, content: line.slice(1) });
+      hunk.lines.push({ kind: 'add', content: line.slice(1), newLine });
       newLine++;
       newRemaining--;
     } else if (marker === '-') {
       if (oldRemaining === 0) fail('Hunk has more removed lines than its header declares');
       hunk.removedCount++;
+      hunk.lines.push({ kind: 'remove', content: line.slice(1) });
       oldRemaining--;
     } else if (marker === ' ') {
       if (oldRemaining === 0 || newRemaining === 0)
         fail('Hunk has more context lines than its header declares');
+      hunk.lines.push({ kind: 'context', content: line.slice(1), newLine });
       newLine++;
       oldRemaining--;
       newRemaining--;

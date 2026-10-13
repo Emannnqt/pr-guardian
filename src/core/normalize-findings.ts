@@ -58,7 +58,7 @@ export function normalizeFindings(
 function clean(candidate: FindingCandidate): FindingCandidate {
   const result: FindingCandidate = {
     ...candidate,
-    title: collapseWhitespace(candidate.title),
+    title: collapseWhitespace(redactSecrets(candidate.title)),
     explanation: redactSecrets(candidate.explanation),
     evidence: redactSecrets(candidate.evidence),
   };

@@ -11,9 +11,9 @@ describe('escapeInline', () => {
     );
   });
 
-  it('neutralizes links, images and table pipes', () => {
+  it('neutralizes links and images', () => {
     expect(escapeInline('[click](javascript:alert(1)) ![i](x) a|b')).toBe(
-      '\\[click\\](javascript:alert(1)) !\\[i\\](x) a\\|b',
+      '\\[click\\](javascript:alert(1)) !\\[i\\](x) a|b',
     );
   });
 

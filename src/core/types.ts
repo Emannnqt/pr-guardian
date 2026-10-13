@@ -6,8 +6,15 @@ import type { ReviewFinding, Severity } from './schema.js';
 export type ReviewFile = EligibleFile;
 export type { SkippedFile };
 
-/** Only rules-only exists today; `hybrid` arrives with the AI adapter (Milestone 3). */
-export type ReviewMode = 'rules-only';
+/** `hybrid` adds an AI analyzer to the deterministic rules. */
+export type ReviewMode = 'rules-only' | 'hybrid';
+
+/** Which model reviewed the change (spec FR-7). Present in hybrid mode. */
+export interface AiDescriptor {
+  provider: string;
+  model: string;
+  promptVersion: string;
+}
 
 /**
  * Whether analysis completed. Rendered as "Completed", "Completed with
@@ -26,11 +33,14 @@ export interface AnalyzerRun {
   /** Findings that passed validation, before deduplication and threshold filtering. */
   findingCount: number;
   diagnostics: string[];
+  /** Present (true) when the analyzer succeeded on only part of its input. */
+  incomplete?: true;
 }
 
 export interface ReviewReport {
   reviewerVersion: string;
   mode: ReviewMode;
+  ai?: AiDescriptor;
   status: ReviewStatus;
   /** Present when status is `failed` because the input was rejected. */
   error?: { code: DiffErrorCode | 'no-analyzers' | 'all-analyzers-failed'; message: string };

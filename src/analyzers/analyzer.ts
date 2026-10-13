@@ -7,6 +7,8 @@ import type { ReviewFile } from '../core/types.js';
  */
 export interface Analyzer {
   readonly name: string;
+  /** Overrides the orchestrator's default timeout (e.g. a slow local model). */
+  readonly timeoutMs?: number;
   analyze(input: AnalyzerInput, signal: AbortSignal): Promise<AnalyzerOutput>;
 }
 
@@ -16,6 +18,12 @@ export interface AnalyzerInput {
 }
 
 export type AnalyzerOutput =
-  | { status: 'succeeded'; findings: readonly unknown[]; diagnostics?: readonly string[] }
+  | {
+      status: 'succeeded';
+      findings: readonly unknown[];
+      diagnostics?: readonly string[];
+      /** Set when only part of the input could be analyzed; makes the review partial. */
+      incomplete?: boolean;
+    }
   /** e.g. the tool is not installed. Never reported as a clean run. */
   | { status: 'skipped'; reason: string };

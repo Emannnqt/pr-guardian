@@ -12,7 +12,14 @@ import { VERSION } from '../version.js';
 import { deduplicateFindings } from './deduplicate.js';
 import { normalizeFindings } from './normalize-findings.js';
 import { SEVERITY_RANK, type ReviewFinding, type Severity } from './schema.js';
-import type { AnalyzerRun, ReviewFile, ReviewReport, ReviewStatus } from './types.js';
+import type {
+  AiDescriptor,
+  AnalyzerRun,
+  ReviewFile,
+  ReviewMode,
+  ReviewReport,
+  ReviewStatus,
+} from './types.js';
 
 export interface ReviewOptions {
   limits: DiffLimits;
@@ -31,6 +38,10 @@ export const DEFAULT_REVIEW_OPTIONS: Readonly<ReviewOptions> = {
 
 export interface ReviewDependencies {
   analyzers: readonly Analyzer[];
+  /** Defaults to `rules-only`. */
+  mode?: ReviewMode;
+  /** Describes the AI analyzer, when one is among `analyzers`. */
+  ai?: AiDescriptor;
   /** Injected for deterministic reports in tests. */
   now?: () => Date;
   /** Monotonic milliseconds, for analyzer durations. */
@@ -59,7 +70,7 @@ export async function reviewDiff(
 export function failedReport(
   error: DiffError,
   options: Pick<ReviewOptions, 'minSeverity'>,
-  deps: Pick<ReviewDependencies, 'now'>,
+  deps: Pick<ReviewDependencies, 'now' | 'mode' | 'ai'>,
 ): ReviewReport {
   return {
     ...emptyReport(options, deps),
@@ -102,6 +113,11 @@ export async function reviewFiles(
   report.findings = findings.filter((f) => SEVERITY_RANK[f.severity] <= threshold);
   report.belowThresholdCount = findings.length - report.findings.length;
   report.limitations = describeLimitations(eligible, skipped, report.analyzers, options);
+  if (deps.ai) {
+    report.limitations.push(
+      'The AI reviewer sees only the changed hunks, not the rest of the repository; its findings are model output that passed format and evidence checks, not verified defects.',
+    );
+  }
   report.status = deriveStatus(eligible, skipped, report.analyzers);
 
   if (report.analyzers.every((a) => a.status === 'failed' || a.status === 'timed-out')) {
@@ -141,13 +157,11 @@ async function runAnalyzer(
     return finish();
   }
 
-  const outcome = await withTimeout(
-    (signal) => analyzer.analyze({ files }, signal),
-    options.analyzerTimeoutMs,
-  );
+  const timeoutMs = analyzer.timeoutMs ?? options.analyzerTimeoutMs;
+  const outcome = await withTimeout((signal) => analyzer.analyze({ files }, signal), timeoutMs);
   if (outcome.kind === 'timeout') {
     run.status = 'timed-out';
-    run.diagnostics.push(`Timed out after ${String(options.analyzerTimeoutMs)} ms.`);
+    run.diagnostics.push(`Timed out after ${String(timeoutMs)} ms.`);
     return finish();
   }
   if (outcome.kind === 'error') {
@@ -163,6 +177,7 @@ async function runAnalyzer(
     return finish();
   }
 
+  if (output.incomplete === true) run.incomplete = true;
   const { findings, diagnostics } = normalizeFindings(output.findings, reviewedPaths);
   run.diagnostics.push(...(output.diagnostics ?? []).map(truncate), ...diagnostics);
   return finish(findings);
@@ -205,7 +220,7 @@ function deriveStatus(
   if (analyzers.every((a) => a.status === 'failed' || a.status === 'timed-out')) return 'failed';
   const incomplete =
     eligible.length === 0 ||
-    analyzers.some((a) => a.status !== 'succeeded') ||
+    analyzers.some((a) => a.status !== 'succeeded' || a.incomplete === true) ||
     skipped.some((f) => f.reason === 'file-too-large') ||
     eligible.some((f) => f.skippedLongLines > 0);
   return incomplete ? 'partial' : 'completed';
@@ -250,6 +265,10 @@ function describeLimitations(
       limitations.push(
         `Analyzer ${run.analyzer} ${run.status === 'skipped' ? 'was skipped' : run.status === 'failed' ? 'failed' : 'timed out'}; its checks were not applied.`,
       );
+    } else if (run.incomplete === true) {
+      limitations.push(
+        `Analyzer ${run.analyzer} could not analyze every eligible file; see diagnostics.`,
+      );
     }
   }
   limitations.push(
@@ -260,11 +279,12 @@ function describeLimitations(
 
 function emptyReport(
   options: Pick<ReviewOptions, 'minSeverity'>,
-  deps: Pick<ReviewDependencies, 'now'>,
+  deps: Pick<ReviewDependencies, 'now' | 'mode' | 'ai'>,
 ): ReviewReport {
   return {
     reviewerVersion: VERSION,
-    mode: 'rules-only',
+    mode: deps.mode ?? 'rules-only',
+    ...(deps.ai ? { ai: deps.ai } : {}),
     status: 'completed',
     findings: [],
     minSeverity: options.minSeverity,

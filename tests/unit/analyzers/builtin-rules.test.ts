@@ -10,6 +10,7 @@ async function ruleIdsFor(...lines: string[]): Promise<string[]> {
     path: 'src/x.ts',
     language: 'typescript',
     skippedLongLines: 0,
+    hunks: [],
     addedLines: lines.map((content, i) => ({ line: i + 1, content })),
   };
   const output = await createBuiltinRulesAnalyzer().analyze(
@@ -110,6 +111,7 @@ describe('built-in rules', () => {
       path: 'src/x.ts',
       language: 'typescript',
       skippedLongLines: 0,
+      hunks: [],
       addedLines: [{ line: 42, content: '  debugger;  ' }],
     };
     const output = await createBuiltinRulesAnalyzer().analyze(
@@ -133,7 +135,17 @@ describe('built-in rules', () => {
     controller.abort();
     await expect(
       createBuiltinRulesAnalyzer().analyze(
-        { files: [{ path: 'a.ts', language: 'typescript', skippedLongLines: 0, addedLines: [] }] },
+        {
+          files: [
+            {
+              path: 'a.ts',
+              language: 'typescript',
+              skippedLongLines: 0,
+              hunks: [],
+              addedLines: [],
+            },
+          ],
+        },
         controller.signal,
       ),
     ).rejects.toThrow();

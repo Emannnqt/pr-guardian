@@ -16,10 +16,10 @@ export function sanitize(text: string): string {
 
 /**
  * Escape text for one line of inline Markdown. Only syntax that can do harm is
- * neutralized: HTML (entity-encoded), links/images and table pipes
- * (backslash-escaped), autolinked URLs and `@` mentions (broken with a
- * zero-width space so a report can never ping users or link to arbitrary
- * sites). Newlines collapse so text cannot start new block elements.
+ * neutralized: HTML (entity-encoded), links/images (backslash-escaped),
+ * autolinked URLs and `@` mentions (broken with a zero-width space so a report
+ * can never ping users or link to arbitrary sites). Newlines collapse so text
+ * cannot start new block elements.
  * Emphasis and code spans are harmless and left alone.
  */
 export function escapeInline(text: string): string {
@@ -28,7 +28,7 @@ export function escapeInline(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/[\\[\]|]/g, '\\$&')
+    .replace(/[\\[\]]/g, '\\$&')
     .replace(/:\/\//g, `:${ZERO_WIDTH_SPACE}//`)
     .replace(/\bwww\./gi, `www${ZERO_WIDTH_SPACE}.`)
     .replace(/@/g, `@${ZERO_WIDTH_SPACE}`);

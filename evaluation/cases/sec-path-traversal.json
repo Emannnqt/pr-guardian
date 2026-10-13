@@ -1,0 +1,13 @@
+{
+  "id": "sec-path-traversal",
+  "group": "security",
+  "description": "File download joins a user-supplied name onto a base directory.",
+  "expected": [
+    {
+      "file": "src/download.ts",
+      "line": 5,
+      "issue": "Path traversal: ../ escapes the uploads directory"
+    }
+  ],
+  "acceptable": []
+}

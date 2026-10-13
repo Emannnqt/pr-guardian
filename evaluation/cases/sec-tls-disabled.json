@@ -1,0 +1,13 @@
+{
+  "id": "sec-tls-disabled",
+  "group": "security",
+  "description": "TLS certificate verification turned off for an HTTP client.",
+  "expected": [
+    {
+      "file": "src/client.ts",
+      "line": 3,
+      "issue": "TLS verification disabled (man-in-the-middle)"
+    }
+  ],
+  "acceptable": []
+}

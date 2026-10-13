@@ -1,0 +1,12 @@
+diff --git a/src/users.ts b/src/users.ts
+new file mode 100644
+index 0000000..e23e357
+--- /dev/null
++++ b/src/users.ts
+@@ -0,0 +1,6 @@
++import { pool } from './db.js';
++
++export async function findUser(name: string) {
++  const sql = "SELECT * FROM users WHERE name = '" + name + "'";
++  return pool.query(sql);
++}

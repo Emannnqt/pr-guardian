@@ -1,0 +1,7 @@
+{
+  "id": "clean-comment-mentions",
+  "group": "clean",
+  "description": "Comments that mention eval( and .only( are not code.",
+  "expected": [],
+  "acceptable": []
+}

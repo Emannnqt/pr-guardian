@@ -28,5 +28,13 @@
 
     "noEmit": true
   },
-  "include": ["src", "tests", "eslint", "scripts", "vitest.config.ts", "eslint.config.js"]
+  "include": [
+    "src",
+    "tests",
+    "eslint",
+    "scripts",
+    "evaluation",
+    "vitest.config.ts",
+    "eslint.config.js"
+  ]
 }

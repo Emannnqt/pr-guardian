@@ -1,0 +1,13 @@
+{
+  "id": "bug-off-by-one",
+  "group": "bug",
+  "description": "Loop reads one element past the end of the array.",
+  "expected": [
+    {
+      "file": "src/sum.ts",
+      "line": 3,
+      "issue": "Off-by-one loop bound"
+    }
+  ],
+  "acceptable": []
+}

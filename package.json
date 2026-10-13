@@ -1,6 +1,6 @@
 {
   "name": "pr-guardian",
-  "version": "0.1.0",
+  "version": "1.0.0",
   "description": "Evidence-backed GitHub pull request reviewer combining static analysis with optional AI review.",
   "private": true,
   "type": "module",
@@ -24,7 +24,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run test && npm run build && npm run build:action",
-    "build:action": "node scripts/build-action.mjs"
+    "build:action": "node scripts/build-action.mjs",
+    "eval": "tsx evaluation/run-eval.ts"
   },
   "devDependencies": {
     "@eslint/js": "10.0.1",
@@ -45,5 +46,6 @@
     "@octokit/plugin-retry": "8.1.1",
     "@octokit/plugin-throttling": "11.0.5",
     "zod": "4.6.7"
-  }
+  },
+  "license": "MIT"
 }

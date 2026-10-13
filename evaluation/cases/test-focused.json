@@ -1,0 +1,13 @@
+{
+  "id": "test-focused",
+  "group": "testing",
+  "description": "A focused test silences the rest of the suite.",
+  "expected": [
+    {
+      "file": "tests/math.test.ts",
+      "line": 3,
+      "issue": "Focused test (.only)"
+    }
+  ],
+  "acceptable": []
+}

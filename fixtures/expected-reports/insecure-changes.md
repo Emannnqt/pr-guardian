@@ -1,6 +1,6 @@
 ## PR Guardian review
 
-**Status:** ✅ Completed · **Mode:** rules-only · **Reviewer:** v0.1.0
+**Status:** ✅ Completed · **Mode:** rules-only · **Reviewer:** v1.0.0
 
 6 findings (3 high, 2 medium, 1 low) in 4 analyzed files.
 

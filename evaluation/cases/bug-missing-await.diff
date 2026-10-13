@@ -1,0 +1,12 @@
+diff --git a/src/orders.ts b/src/orders.ts
+index f978000..82bf55c 100644
+--- a/src/orders.ts
++++ b/src/orders.ts
+@@ -1,6 +1,6 @@
+ import { saveOrder } from './store.js';
+ 
+ export async function placeOrder(order: { id: string }) {
+-  await saveOrder(order);
++  saveOrder(order);
+   return { ok: true };
+ }

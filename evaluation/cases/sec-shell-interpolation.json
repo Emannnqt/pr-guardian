@@ -1,0 +1,13 @@
+{
+  "id": "sec-shell-interpolation",
+  "group": "security",
+  "description": "Branch name interpolated into a shell command.",
+  "expected": [
+    {
+      "file": "src/deploy.ts",
+      "line": 4,
+      "issue": "Command injection: branch name reaches a shell"
+    }
+  ],
+  "acceptable": []
+}

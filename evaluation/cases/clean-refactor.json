@@ -1,0 +1,7 @@
+{
+  "id": "clean-refactor",
+  "group": "clean",
+  "description": "Pure refactor: extract a helper.",
+  "expected": [],
+  "acceptable": []
+}

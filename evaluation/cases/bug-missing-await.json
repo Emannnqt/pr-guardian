@@ -1,0 +1,13 @@
+{
+  "id": "bug-missing-await",
+  "group": "bug",
+  "description": "Async save is not awaited, so errors are lost and the response is sent first.",
+  "expected": [
+    {
+      "file": "src/orders.ts",
+      "line": 4,
+      "issue": "Promise not awaited (floating promise)"
+    }
+  ],
+  "acceptable": []
+}

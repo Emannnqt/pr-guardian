@@ -1,0 +1,12 @@
+diff --git a/src/download.ts b/src/download.ts
+new file mode 100644
+index 0000000..9f7429d
+--- /dev/null
++++ b/src/download.ts
+@@ -0,0 +1,6 @@
++import { readFile } from 'node:fs/promises';
++import { join } from 'node:path';
++
++export async function download(fileName: string): Promise<Buffer> {
++  return readFile(join('/srv/uploads', fileName));
++}

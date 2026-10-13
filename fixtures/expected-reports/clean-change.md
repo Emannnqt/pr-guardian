@@ -1,6 +1,6 @@
 ## PR Guardian review
 
-**Status:** ✅ Completed · **Mode:** rules-only · **Reviewer:** v0.1.0
+**Status:** ✅ Completed · **Mode:** rules-only · **Reviewer:** v1.0.0
 
 No findings at or above low severity in 1 analyzed file.
 

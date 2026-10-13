@@ -1,0 +1,13 @@
+{
+  "id": "sec-missing-authorization",
+  "group": "security",
+  "description": "Invoice lookup by id without checking that it belongs to the caller (IDOR).",
+  "expected": [
+    {
+      "file": "src/invoices.ts",
+      "line": 5,
+      "issue": "Authorization check removed: any user can read any invoice"
+    }
+  ],
+  "acceptable": []
+}

@@ -2,128 +2,97 @@
 
 > Catch evidence-backed problems in pull requests before they reach production.
 
-PR Guardian is a GitHub pull request reviewer that combines deterministic static analysis with
-optional, schema-validated AI review. It is an assistant, not an authority: **a report with no
-findings does not mean the code is correct or secure.**
+PR Guardian reviews GitHub pull requests with deterministic rules and an optional local AI
+reviewer, and reports what it finds as a job summary and inline comments on the changed lines. Every
+finding names a file and line, quotes the evidence, and says where it came from. It is an
+assistant, not an authority: **a review with no findings does not mean the code is correct or
+secure.**
 
-> **Status: early development (Milestone 5 of 6).** The review engine runs locally (rules-only, or
-> with an optional local AI reviewer) and as a GitHub Action that publishes a job summary and,
-> optionally, inline comments on pull requests. Evaluation results are not published yet. This
-> README only describes what exists today.
+**v1.0.0** · TypeScript · GitHub Action + CLI · MIT · [evaluation](docs/evaluation.md) ·
+[security model](docs/security.md) · [architecture](docs/architecture.md) · [demo](docs/demo.md)
 
-## Design goals
+## Why
 
-- **Review the change, not the repository.** Analyze only the pull request diff and bounded context.
-- **Deterministic first.** Static-analysis findings are the reproducible baseline; AI is optional.
-- **Validate every boundary.** Diffs, configuration, tool output and model output are untrusted.
-- **Fail honestly.** Failed or partial analysis is never reported as a clean review.
-- **Least privilege.** Minimal GitHub token permissions; no untrusted PR code runs with secrets.
+AI code reviewers are easy to build and hard to trust: they invent issues, cite lines that do not
+exist, can be steered by text in the code they review, and present a quiet run as a clean bill of
+health. PR Guardian is built around the opposite defaults:
 
-## Requirements
+- **Evidence or nothing.** Findings are schema-validated and must point at a real changed line;
+  model output that cannot be grounded in the diff is dropped.
+- **Deterministic first.** Fast rules are the reproducible baseline; AI is optional and local.
+- **Honest status.** Every review is _Completed_, _Completed with limitations_ or _Failed_; a
+  failed analyzer never looks like a clean review.
+- **Safe by construction.** Pull request code is never executed, the Action needs read-only
+  permissions by default, and report text is escaped so a PR cannot inject HTML or mentions.
 
-- Node.js **22.12 or newer** (24 LTS recommended; see [`.nvmrc`](.nvmrc))
-- npm 10+
+## Example
 
-## Quick start (development)
+The demo pull request ([PR #1](https://github.com/Emannnqt/pr-guardian/pull/1), an intentionally
+insecure sample) adds a deploy helper. The start of PR Guardian's report, as generated for that diff:
 
-```sh
-nvm use            # selects the Node version from .nvmrc
-npm ci
-npm run check      # typecheck, lint, format check, tests, build
-npm run dev -- --help
+````markdown
+## PR Guardian review
+
+**Status:** ✅ Completed · **Mode:** rules-only · **Reviewer:** v1.0.0
+
+2 findings (2 high) in 1 analyzed file.
+
+### Findings
+
+#### High (2)
+
+##### 1. Shell command built with string interpolation
+
+- **Location:** `demo/insecure-example.ts` line 6
+- **Category:** security · **Confidence:** 0.60 · **Source:** static-analysis (`builtin/shell-command-interpolation`)
+
+`exec`/`execSync` run their argument through a shell. Interpolating values into the command string allows command injection if any value can be influenced by a user.
+
+**Evidence**
+
+```text
+execSync(`git push origin ${branch}`);
 ```
 
-## Using the GitHub Action
+**Suggested fix:** Use `execFile`/`spawn` with an argument array (no shell), or strictly validate every interpolated value.
 
-Add `.github/workflows/pr-guardian.yml` to a repository:
+…
+````
 
-```yaml
-name: PR Guardian
-on:
-  pull_request:
-    types: [opened, synchronize, reopened]
-permissions:
-  contents: read
-  pull-requests: read
-jobs:
-  review:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - uses: Emannnqt/pr-guardian@<full-commit-sha> # pin a release commit
-        with:
-          fail-on: high # optional; omit for advisory-only reviews
+With `inline-comments: true` the same findings appear as review comments on those lines, and a
+re-run adds nothing new. Full sample reports: [`fixtures/expected-reports/`](fixtures/expected-reports/)
+(for example [insecure-changes.md](fixtures/expected-reports/insecure-changes.md) and the
+[hybrid version](fixtures/expected-reports/insecure-changes.hybrid.md)).
+
+## Architecture
+
+A modular monolith in one Node.js process. The core never talks to GitHub or a model directly;
+adapters do, behind narrow interfaces, and lint rules enforce the boundaries.
+
+```mermaid
+flowchart LR
+    PR[Pull request event] --> A[GitHub adapter<br/>read PR via REST API]
+    CLI[Local CLI<br/>git diff] --> D
+    A --> D[Diff parser<br/>limits + path checks]
+    D --> E[Eligibility<br/>languages, exclusions, secret files]
+    E --> O[Review orchestrator<br/>timeouts, honest status]
+    O --> R[Built-in rules]
+    O -. optional .-> M[AI reviewer<br/>local Ollama]
+    R --> V[Validation + redaction<br/>+ deduplication]
+    M --> G[Evidence grounding] --> V
+    V --> S[Report]
+    S --> J[Job summary]
+    S --> I[Inline comments<br/>opt-in, deduplicated]
 ```
 
-The review appears as the job summary on the run (the pull request's **Checks** tab). It needs
-no write permission, so it also works for pull requests from forks. The Action reads the change
-through the GitHub API; it never checks out or executes pull request code. It runs the built-in
-rules only (AI review is local-only for now).
+Details and the decision log: [docs/architecture.md](docs/architecture.md).
 
-| Input                 | Default               | Meaning                                                                   |
-| --------------------- | --------------------- | ------------------------------------------------------------------------- |
-| `min-severity`        | `low`                 | Lowest severity listed; hidden findings are still counted                 |
-| `fail-on`             | (empty)               | Fail the step if a listed finding is at or above this severity            |
-| `exclude-paths`       | (empty)               | Extra paths to skip, one per line, e.g. `src/generated`                   |
-| `max-files`           | `300`                 | Fail the review above this many changed files (can only be lowered)       |
-| `max-file-bytes`      | `100000`              | Skip files with a larger diff (can only be lowered)                       |
-| `github-token`        | `${{ github.token }}` | Token with `pull-requests: read` and `contents: read`                     |
-| `inline-comments`     | `false`               | Also post inline comments on changed lines (needs `pull-requests: write`) |
-| `max-inline-comments` | `10`                  | Most inline comments per run (1–50); the rest stay in the summary         |
-| `comment-author`      | `github-actions[bot]` | Whose comments count as PR Guardian's (change only for custom tokens)     |
+## Languages and modes
 
-Outputs: `status` (`completed`, `partial`, `failed`), `finding-count`, `report-path` (JSON report),
-`inline-comments-posted`. The step fails when the review fails, `fail-on` is met, or inline comments
-were enabled but could not be posted; otherwise it passes, with a warning when the review completed
-with limitations.
-
-### Inline comments
-
-With `inline-comments: true` and `permissions: pull-requests: write`, findings are also posted as
-review comments on the exact added lines, as **one review per run** with event `COMMENT` (PR
-Guardian never approves or requests changes).
-
-- Only **added** lines get comments; findings without one stay in the summary.
-- **Reruns do not repeat comments.** Each comment carries a hidden fingerprint; a finding is
-  skipped when a PR Guardian comment with the same fingerprint is still on that line. GitHub keeps
-  comments attached as surrounding code moves, so shifted findings are not reposted; a finding on
-  rewritten code is commented once more on its new line.
-- Only comments written by `comment-author` count, so a fingerprint pasted into someone else's
-  comment cannot suppress a finding.
-- PR Guardian never edits or deletes comments, its own or anyone else's.
-- Pull requests from forks get a read-only token, so inline comments are skipped with a notice and
-  the job summary is still published. See [docs/security.md](docs/security.md) for the trust
-  model, fork behavior and how to make the check required.
-
-## Reviewing a diff locally
-
-The engine runs entirely offline: no GitHub or AI credentials, no network access, and it never
-executes code from the diff.
-
-```sh
-npm run build
-git diff main...HEAD | node dist/cli/index.js review -       # Markdown report on stdout
-node dist/cli/index.js review changes.diff --format json     # machine-readable report
-node dist/cli/index.js review changes.diff --fail-on high    # opt-in CI gate
-```
-
-Input must be a git-style unified diff (`git diff` output). Example reports for the fixture diffs
-are in [`fixtures/expected-reports/`](fixtures/expected-reports/).
-
-| Option                    | Default    | Meaning                                                   |
-| ------------------------- | ---------- | --------------------------------------------------------- |
-| `--format markdown\|json` | `markdown` | Report format                                             |
-| `--min-severity <level>`  | `low`      | Lowest severity listed; hidden findings are still counted |
-| `--fail-on <level>`       | (none)     | Exit 1 if a listed finding is at or above this severity   |
-
-**Exit codes:** `0` review completed (possibly with limitations) · `1` `--fail-on` threshold met ·
-`2` usage error · `3` review failed (input rejected, or every analyzer failed). Reviews are
-advisory by default: findings alone never fail the process.
-
-**Review status** is always one of _Completed_, _Completed with limitations_ (an analyzer failed,
-timed out or was skipped, a file or line exceeded a limit, or no file was eligible) or _Failed_.
-
-### Built-in rules (TypeScript and JavaScript)
+- **Languages:** TypeScript and JavaScript (`.ts .tsx .mts .cts .js .jsx .mjs .cjs`). Other files
+  are listed as not analyzed.
+- **Rules-only** (default, CLI and Action): the built-in rules below. No network, no model.
+- **Hybrid** (CLI only): rules plus a local model through [Ollama](https://ollama.com).
 
 | Rule                                  | Severity | Flags                                                                    |
 | ------------------------------------- | -------- | ------------------------------------------------------------------------ |
@@ -134,15 +103,87 @@ timed out or was skipped, a file or line exceeded a limit, or no file was eligib
 | `builtin/focused-test`                | medium   | `.only`, `fit`, `fdescribe`                                              |
 | `builtin/debugger-statement`          | low      | `debugger`                                                               |
 
-Detected secrets are redacted in every output format.
+Rules match code, not text: patterns inside string literals and comments are ignored. Detected
+secrets are redacted in every output.
 
-### Optional AI review (hybrid mode)
+## Quick start (local)
 
-`--mode hybrid` adds a local model reviewer, through [Ollama](https://ollama.com), to the
-built-in rules. AI is **off by default**, and rules-only mode never makes a network request.
+Requires Node.js **22.12+** (24 LTS recommended; see [`.nvmrc`](.nvmrc)).
 
 ```sh
-ollama pull qwen2.5-coder:3b           # ~1.9 GB; runs on CPU-only machines
+git clone https://github.com/Emannnqt/pr-guardian.git && cd pr-guardian
+npm ci
+npm run build
+node dist/cli/index.js review fixtures/diffs/insecure-changes.diff   # sample review
+git diff main...HEAD | node dist/cli/index.js review -               # review your own change
+```
+
+| Option                      | Default      | Meaning                                                   |
+| --------------------------- | ------------ | --------------------------------------------------------- |
+| `--format markdown\|json`   | `markdown`   | Report format                                             |
+| `--min-severity <level>`    | `low`        | Lowest severity listed; hidden findings are still counted |
+| `--fail-on <level>`         | (none)       | Exit 1 if a listed finding is at or above this severity   |
+| `--mode rules-only\|hybrid` | `rules-only` | Add the local AI reviewer                                 |
+
+**Exit codes:** `0` completed (possibly with limitations) · `1` `--fail-on` met · `2` usage error ·
+`3` review failed. Reviews are advisory unless you pass `--fail-on`.
+
+## GitHub Action
+
+Add `.github/workflows/pr-guardian.yml` to your repository:
+
+```yaml
+name: PR Guardian
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+permissions:
+  contents: read
+  pull-requests: write # only needed for inline-comments; use "read" otherwise
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: Emannnqt/pr-guardian@v1 # or pin a full commit SHA
+        with:
+          inline-comments: true
+          # fail-on: high            # optional; omit for advisory-only reviews
+```
+
+The report appears as the run's job summary (PR **Checks** tab → **PR Guardian** → **Summary**).
+The Action reads the change through the GitHub API and never checks out or executes pull request
+code. Pull requests from forks get a read-only token: the summary still works and inline comments
+are skipped with a notice.
+
+| Input                 | Default               | Meaning                                                                   |
+| --------------------- | --------------------- | ------------------------------------------------------------------------- |
+| `min-severity`        | `low`                 | Lowest severity listed; hidden findings are still counted                 |
+| `fail-on`             | (empty)               | Fail the step if a listed finding is at or above this severity            |
+| `inline-comments`     | `false`               | Also post inline comments on changed lines (needs `pull-requests: write`) |
+| `max-inline-comments` | `10`                  | Most inline comments per run (1–50); the rest stay in the summary         |
+| `exclude-paths`       | (empty)               | Extra paths to skip, one per line, e.g. `src/generated`                   |
+| `max-files`           | `300`                 | Fail the review above this many changed files (can only be lowered)       |
+| `max-file-bytes`      | `100000`              | Skip files with a larger diff (can only be lowered)                       |
+| `comment-author`      | `github-actions[bot]` | Whose comments count as PR Guardian's (change only for custom tokens)     |
+| `github-token`        | `${{ github.token }}` | Token used to read the PR (and post comments)                             |
+
+Outputs: `status`, `finding-count`, `inline-comments-posted`, `report-path` (full JSON report).
+The step fails when the review fails, `fail-on` is met, or enabled inline comments could not be
+posted; it passes with a warning when the review completed with limitations.
+
+**Inline comments** are posted as one `COMMENT` review per run (never approve or request changes),
+only on added lines. Each carries a hidden fingerprint, so re-runs skip findings that already have
+a PR Guardian comment on that line; only comments by `comment-author` count, so a pasted marker
+cannot hide a finding. PR Guardian never edits or deletes comments.
+
+**Making it enforceable:** a pull request can edit workflow files, so mark the check as required
+in branch protection and protect `.github/` with CODEOWNERS. See [docs/security.md](docs/security.md).
+
+## AI review (local, optional)
+
+```sh
+ollama pull qwen2.5-coder:3b     # ~1.9 GB, runs on CPU
 node dist/cli/index.js review changes.diff --mode hybrid --ai-model qwen2.5-coder:3b
 ```
 
@@ -153,70 +194,59 @@ node dist/cli/index.js review changes.diff --mode hybrid --ai-model qwen2.5-code
 | `--ai-timeout <seconds>` | `300`                    | Time limit for the model                              |
 | `--allow-remote-ai`      | off                      | Required for any endpoint that is not on this machine |
 
-How model output is kept honest:
+- **What the model sees:** only the changed hunks, inside per-request nonce delimiters, labeled as
+  untrusted data. Files containing a detected credential are never sent; other credential-like
+  values are redacted first.
+- **What it can't do:** its reply must be size-capped JSON in a strict shape (one repair retry);
+  findings must cite a file it was shown and quote an added line; `source` is always set to `ai`
+  by PR Guardian. The prompt is versioned (`review-v1`) and named in every report.
+- **When it fails** (unavailable, timeout, junk), the review continues with the rules and is
+  marked _Completed with limitations_.
+- **Privacy:** diff content goes only to the configured endpoint; with the default local endpoint
+  it stays on your machine as far as your Ollama setup keeps it there.
+- **Quality:** small local models on a CPU are slow (minutes per review) and miss things. AI
+  findings passed format and evidence checks; they are not verified defects.
 
-- The model sees only the changed hunks, wrapped in delimiters with a random per-request nonce,
-  and is told that repository text is data, not instructions. Prompt wording is **not** relied
-  on as a security boundary; the checks below are enforced in code.
-- Its reply must be JSON matching a strict shape (size-capped; one repair retry). Each finding
-  must name a file the model was shown, and its evidence must quote an **added** line, or it is
-  dropped. Line numbers are verified against the diff. `source` is always set to `ai` by
-  PR Guardian, never by the model.
-- If the model is unavailable, times out or replies with junk, the review continues with the
-  rules and is marked _Completed with limitations_; it never looks like a clean AI review.
+## Security and limitations
 
-**Privacy.** Diff content is sent only to the configured endpoint. With the default local
-endpoint it stays on this machine, as far as your Ollama setup keeps it there. Files containing a
-detected credential are never sent; other credential-like values are redacted first.
+The full model, permissions table and trust boundaries are in [docs/security.md](docs/security.md).
 
-**Quality.** Small local models running on a CPU are slow (minutes per review) and miss things or
-produce weak findings. AI findings are model output that passed format and evidence checks,
-not verified defects. The prompt is versioned (`review-v1`) and recorded in every report.
+- Pull request code is never executed. Diffs, API responses and model output are all validated as
+  untrusted input, with size limits throughout (1 MB / 300 files per diff, 100 KB per file).
+- Files that commonly hold secrets (`.env*`, keys, `.npmrc`, `credentials.*`, …) are never analyzed
+  or quoted.
+- The rules see one added line at a time: issues that depend on wider context (authorization,
+  data flow, logic) are not detected, and a pattern inside a multi-line string can be a false
+  positive. Removed code is not reviewed.
+- Confidence values are heuristics, not calibrated probabilities.
 
-### Limits and exclusions
+## Testing and evaluation
 
-- Diffs over 1 MB or 300 files are rejected; files whose patch exceeds 100 KB, and added lines
-  longer than 1,000 characters, are skipped and the review is marked _Completed with limitations_.
-- Only `.ts .tsx .mts .cts .js .jsx .mjs .cjs` files are analyzed. `node_modules/`, `dist/`,
-  `build/`, `coverage/`, `vendor/`, `.d.ts` and minified files are excluded.
-- Files that commonly hold secrets (`.env*`, `*.pem`, `*.key`, SSH keys, `.npmrc`,
-  `credentials.*`, …) are never analyzed or quoted.
+`npm run check` runs typecheck, lint (including architecture-boundary rules), formatting, 370+
+tests and both builds; CI runs it on Node 22 and 24 and verifies the committed Action bundle.
+Tests cover golden reports, fake GitHub and Ollama servers, prompt injection, spoofed markers,
+oversized input and secret redaction.
 
-### Known limitations
+On a labeled set of 27 pull-request diffs ([methodology and full results](docs/evaluation.md)):
 
-- Rules see one added line at a time. Issues that depend on surrounding code are not detected,
-  and a pattern inside a string that spans several lines (e.g. a multi-line template literal) can
-  be reported as a false positive.
-- Only added lines are reviewed; removed code and unchanged context are not.
-- Confidence values are fixed per rule and are heuristics, not calibrated probabilities.
+| Mode       | Precision                                    | Recall | Clean-case false-positive rate |
+| ---------- | -------------------------------------------- | ------ | ------------------------------ |
+| Rules-only | 90.0%                                        | 47.4%  | 14.3%                          |
+| Hybrid     | see [docs/evaluation.md](docs/evaluation.md) |        |                                |
 
-## Scripts
+The rules are precise but narrow: they find what they target and miss issues that need real
+analysis (authorization, SQL injection, XSS, logic bugs), which the dataset labels on purpose. The
+dataset is small and was written alongside the tool; treat these numbers as a description of this
+dataset, not of real-world performance.
 
-| Script                  | Purpose                                              |
-| ----------------------- | ---------------------------------------------------- |
-| `npm run dev -- <args>` | Run the CLI from source with `tsx`                   |
-| `npm run build`         | Compile `src/` to `dist/` with `tsc`                 |
-| `npm run typecheck`     | Strict type-check of source, tests and config        |
-| `npm run lint`          | ESLint, including architectural boundary rules       |
-| `npm run format`        | Format with Prettier (`format:check` to verify only) |
-| `npm test`              | Run the Vitest suite once (`test:watch` to watch)    |
-| `npm run check`         | Everything CI runs, in order                         |
+## Roadmap
 
-## Architecture
+- More languages, each with its own rules and evaluation cases
+- Semgrep with project-owned rules behind the existing analyzer interface
+- AI review in the Action with a self-hosted model endpoint
+- Larger, independently labeled evaluation set
 
-PR Guardian is a modular monolith that runs as a single Node.js process. Module boundaries are
-enforced by lint rules and covered by tests. See [docs/architecture.md](docs/architecture.md).
+## Contributing and license
 
-## Planned
-
-- Evaluation dataset and published methodology (Milestone 6)
-
-## Security
-
-Do not commit secrets. Secrets are supplied through environment variables or GitHub Secrets only.
-The security model, permissions and known limitations are documented in
-[docs/security.md](docs/security.md).
-
-## License
-
-_To be decided._
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, checks, and how to add a rule or an evaluation
+case. Changes are listed in [CHANGELOG.md](CHANGELOG.md). Licensed under the [MIT License](LICENSE).

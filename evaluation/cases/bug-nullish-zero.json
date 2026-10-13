@@ -1,0 +1,13 @@
+{
+  "id": "bug-nullish-zero",
+  "group": "bug",
+  "description": "A configured value of 0 is replaced by the default because of ||.",
+  "expected": [
+    {
+      "file": "src/config.ts",
+      "line": 2,
+      "issue": "Zero is treated as missing; use ??"
+    }
+  ],
+  "acceptable": []
+}

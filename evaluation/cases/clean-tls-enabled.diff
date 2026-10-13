@@ -1,0 +1,10 @@
+diff --git a/src/client.ts b/src/client.ts
+new file mode 100644
+index 0000000..f4197e9
+--- /dev/null
++++ b/src/client.ts
+@@ -0,0 +1,4 @@
++import https from 'node:https';
++import { readFileSync } from 'node:fs';
++
++export const agent = new https.Agent({ ca: readFileSync('ca.pem'), rejectUnauthorized: true });

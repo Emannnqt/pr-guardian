@@ -1,0 +1,11 @@
+diff --git a/src/samples.ts b/src/samples.ts
+new file mode 100644
+index 0000000..0e7abfa
+--- /dev/null
++++ b/src/samples.ts
+@@ -0,0 +1,5 @@
++export const SAMPLES = [
++  'eval(userInput)',
++  "rejectUnauthorized: false",
++  'it.only(\'x\')',
++];

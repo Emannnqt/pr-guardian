@@ -1,0 +1,7 @@
+{
+  "id": "clean-multiline-template",
+  "group": "clean",
+  "description": "Pattern inside a multi-line template literal used as test data (known rules limitation).",
+  "expected": [],
+  "acceptable": []
+}

@@ -1,0 +1,13 @@
+{
+  "id": "sec-eval-user-input",
+  "group": "security",
+  "description": "Request parameter evaluated as JavaScript.",
+  "expected": [
+    {
+      "file": "src/calc.ts",
+      "line": 5,
+      "issue": "Code injection: user input passed to eval"
+    }
+  ],
+  "acceptable": []
+}
